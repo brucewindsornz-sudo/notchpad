@@ -185,7 +185,9 @@ final class NotchController: ObservableObject {
 
     // MARK: Open / close
 
-    func toggle() { state == .expanded ? collapse() : expand(byHover: false) }
+    func toggle() {
+        if state == .expanded { collapse() } else { expand(byHover: false) }
+    }
 
     func expand(byHover: Bool) {
         hoverOpenWork?.cancel()
@@ -216,7 +218,7 @@ final class NotchController: ObservableObject {
         panel.ignoresMouseEvents = true
         panel.resignKey()
         if restoreFocus, !(isSettingsVisible?() ?? false) {
-            previousApp?.activate()
+            previousApp?.activate(options: [])
         }
         // Keep the panel visible above the menu bar.
         panel.orderFrontRegardless()

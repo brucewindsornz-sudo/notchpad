@@ -20,7 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         hotKey = HotKey { [weak self] in self?.controller.toggle() }
         settings.$hotkeyEnabled.sink { [weak self] on in
-            DispatchQueue.main.async { on ? self?.hotKey?.register() : self?.hotKey?.unregister() }
+            DispatchQueue.main.async {
+                if on { self?.hotKey?.register() } else { self?.hotKey?.unregister() }
+            }
         }.store(in: &bag)
         settings.$showMenuBarIcon.sink { [weak self] on in
             DispatchQueue.main.async { self?.updateStatusItem(on) }

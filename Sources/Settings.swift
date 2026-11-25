@@ -133,6 +133,7 @@ final class Settings: ObservableObject {
     @Published var spellCheck: Bool { didSet { d.set(spellCheck, forKey: "spellCheck") } }
 
     init() {
+        let d = UserDefaults.standard
         d.register(defaults: [
             "keepOpen": false, "openOnHover": false, "hoverNudge": true, "haptics": true,
             "closeOnClickOutside": true, "hotkeyEnabled": true, "showMenuBarIcon": true,
