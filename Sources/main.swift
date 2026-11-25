@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         guard statusItem == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "NotchPad")
+        item.button?.image = AppDelegate.menuBarIcon()
         let menu = NSMenu()
         menu.addItem(withTitle: "Open or Close Scratchpad  (⌃⌥N)", action: #selector(togglePad), keyEquivalent: "").target = self
         let pin = menu.addItem(withTitle: "Keep Open", action: #selector(togglePin), keyEquivalent: "")
@@ -68,6 +68,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self
         item.menu = menu
         statusItem = item
+    }
+
+    /// Menu bar icon: a little notepad with a notch cut into its top edge (adapts to light/dark).
+    static func menuBarIcon() -> NSImage {
+        let img = NSImage(size: NSSize(width: 18, height: 16), flipped: false) { _ in
+            NSColor.black.setStroke()
+            NSColor.black.setFill()
+            let body = NSBezierPath(roundedRect: NSRect(x: 2, y: 1.5, width: 14, height: 13), xRadius: 3, yRadius: 3)
+            body.lineWidth = 1.4
+            body.stroke()
+            // The notch, hanging from the top edge.
+            let notch = NSBezierPath(roundedRect: NSRect(x: 6.5, y: 10.5, width: 5, height: 4.6), xRadius: 1.4, yRadius: 1.4)
+            notch.fill()
+            // Text lines.
+            for (i, w) in [8.0, 6.0, 7.0].enumerated() {
+                let line = NSBezierPath(roundedRect: NSRect(x: 5, y: 7.4 - Double(i) * 2.4, width: w, height: 1.2), xRadius: 0.6, yRadius: 0.6)
+                line.fill()
+            }
+            return true
+        }
+        img.isTemplate = true
+        img.accessibilityDescription = "NotchPad"
+        return img
     }
 
     @objc private func togglePad() { controller.toggle() }

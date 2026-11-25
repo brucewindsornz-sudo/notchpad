@@ -17,9 +17,19 @@ A private scratchpad that lives in your MacBook's camera notch.
 - Optional Touch ID lock, blur-when-away and auto-erase.
 
 ## Install
-Prebuilt: unzip NotchPad.zip, move NotchPad.app to Applications, then run once:
-    xattr -dr com.apple.quarantine /Applications/NotchPad.app
-From source (needs `xcode-select --install`):
-    ./build.sh --install
+Needs macOS 13 Ventura or later. NotchPad is built on your own Mac (it takes about a minute).
 
-Requires macOS 13 Ventura or later. Works on Macs without a notch too (sits at the top centre).
+**Easiest:** double-click `Install NotchPad.command`. It installs Apple's free Command Line
+Tools if needed, builds NotchPad, puts it in Applications and starts it.
+
+**Drag-to-Applications installer:** double-click `Make NotchPad.dmg.command`. It creates
+`NotchPad.dmg` in this folder and opens it; drag NotchPad onto Applications. You can keep the
+.dmg to reinstall later.
+
+**Remove:** double-click `Uninstall NotchPad.command` (asks before deleting your notes).
+
+If macOS says a .command file "can't be opened", right-click it and choose Open
+(on macOS 15: System Settings › Privacy & Security › Open Anyway). Or run it in Terminal:
+    bash "Install NotchPad.command"
+
+Terminal equivalents: `./build.sh --install`, `./make-dmg.sh`.

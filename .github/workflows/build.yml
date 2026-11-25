@@ -16,10 +16,9 @@ jobs:
           pgrep -x NotchPad
           log show --last 1m --predicate 'process == "NotchPad"' --style compact | tail -20 || true
           pkill -x NotchPad
-      - name: Package
-        run: |
-          cd build && ditto -c -k --keepParent NotchPad.app NotchPad.zip
+      - name: Make disk image
+        run: ./make-dmg.sh
       - uses: actions/upload-artifact@v4
         with:
           name: NotchPad
-          path: build/NotchPad.zip
+          path: build/NotchPad.dmg
