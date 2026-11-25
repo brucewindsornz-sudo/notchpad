@@ -1,6 +1,6 @@
 name: Build
+# Manual only: this account's hosted macOS runners are unavailable.
 on:
-  push:
   workflow_dispatch:
 jobs:
   build:
