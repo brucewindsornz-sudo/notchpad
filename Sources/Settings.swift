@@ -124,6 +124,18 @@ final class Settings: ObservableObject {
     @Published var opacity: Double { didSet { d.set(opacity, forKey: "opacity") } }
     @Published var showWordCount: Bool { didSet { d.set(showWordCount, forKey: "showWordCount") } }
 
+    // Size and position (remembered across restarts)
+    @Published var rememberLayout: Bool { didSet { d.set(rememberLayout, forKey: "rememberLayout") } }
+    @Published var customWidth: Double { didSet { d.set(customWidth, forKey: "customWidth") } }
+    @Published var customHeight: Double { didSet { d.set(customHeight, forKey: "customHeight") } }
+    /// True when the pad has been dragged away from the notch.
+    @Published var detached: Bool { didSet { d.set(detached, forKey: "detached") } }
+    /// Offset of the pad's top-centre from the notch's top-centre, in points (y grows downward).
+    @Published var offsetX: Double { didSet { d.set(offsetX, forKey: "offsetX") } }
+    @Published var offsetY: Double { didSet { d.set(offsetY, forKey: "offsetY") } }
+    /// Whether the pad was open (and pinned) when the app last quit.
+    @Published var wasOpen: Bool { didSet { d.set(wasOpen, forKey: "wasOpen") } }
+
     // Privacy
     @Published var hideFromCapture: Bool { didSet { d.set(hideFromCapture, forKey: "hideFromCapture") } }
     @Published var lockEnabled: Bool { didSet { d.set(lockEnabled, forKey: "lockEnabled") } }
@@ -140,6 +152,8 @@ final class Settings: ObservableObject {
             "size": PadSize.medium.rawValue, "font": PadFont.system.rawValue, "fontSize": 14.0,
             "theme": PadTheme.notch.rawValue, "opacity": 1.0, "showWordCount": true,
             "hideFromCapture": true, "lockEnabled": false, "lockAfter": LockAfter.fiveMinutes.rawValue,
+            "rememberLayout": true, "customWidth": 0.0, "customHeight": 0.0, "detached": false,
+            "offsetX": 0.0, "offsetY": 0.0, "wasOpen": false,
             "blurWhenAway": false, "autoErase": AutoErase.never.rawValue, "spellCheck": false,
         ])
         keepOpen = d.bool(forKey: "keepOpen")
@@ -155,6 +169,13 @@ final class Settings: ObservableObject {
         theme = PadTheme(rawValue: d.string(forKey: "theme") ?? "") ?? .notch
         opacity = d.double(forKey: "opacity")
         showWordCount = d.bool(forKey: "showWordCount")
+        rememberLayout = d.bool(forKey: "rememberLayout")
+        customWidth = d.double(forKey: "customWidth")
+        customHeight = d.double(forKey: "customHeight")
+        detached = d.bool(forKey: "detached")
+        offsetX = d.double(forKey: "offsetX")
+        offsetY = d.double(forKey: "offsetY")
+        wasOpen = d.bool(forKey: "wasOpen")
         hideFromCapture = d.bool(forKey: "hideFromCapture")
         lockEnabled = d.bool(forKey: "lockEnabled")
         lockAfter = LockAfter(rawValue: d.integer(forKey: "lockAfter")) ?? .fiveMinutes
@@ -166,7 +187,8 @@ final class Settings: ObservableObject {
     func resetToDefaults() {
         for key in ["keepOpen", "openOnHover", "hoverNudge", "haptics", "closeOnClickOutside", "hotkeyEnabled",
                     "showMenuBarIcon", "size", "font", "fontSize", "theme", "opacity", "showWordCount",
-                    "hideFromCapture", "lockEnabled", "lockAfter", "blurWhenAway", "autoErase", "spellCheck"] {
+                    "hideFromCapture", "lockEnabled", "lockAfter", "blurWhenAway", "autoErase", "spellCheck",
+                    "rememberLayout", "customWidth", "customHeight", "detached", "offsetX", "offsetY"] {
             d.removeObject(forKey: key)
         }
         let fresh = Settings()
@@ -177,5 +199,15 @@ final class Settings: ObservableObject {
         opacity = fresh.opacity; showWordCount = fresh.showWordCount; hideFromCapture = fresh.hideFromCapture
         lockEnabled = fresh.lockEnabled; lockAfter = fresh.lockAfter; blurWhenAway = fresh.blurWhenAway
         autoErase = fresh.autoErase; spellCheck = fresh.spellCheck
+        rememberLayout = fresh.rememberLayout
+        resetLayout()
+    }
+
+    var hasCustomSize: Bool { customWidth > 0 && customHeight > 0 }
+
+    /// Back to the preset size, docked in the notch.
+    func resetLayout() {
+        customWidth = 0; customHeight = 0
+        detached = false; offsetX = 0; offsetY = 0
     }
 }

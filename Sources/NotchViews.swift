@@ -5,6 +5,8 @@ import AppKit
 struct NotchShape: Shape {
     var topRadius: CGFloat
     var bottomRadius: CGFloat
+    /// When moved away from the notch it becomes a plain rounded card.
+    var floating = false
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(topRadius, bottomRadius) }
@@ -12,6 +14,7 @@ struct NotchShape: Shape {
     }
 
     func path(in r: CGRect) -> Path {
+        if floating { return RoundedRectangle(cornerRadius: 18, style: .continuous).path(in: r) }
         let t = min(topRadius, r.width / 4)
         let b = min(bottomRadius, (r.width - 2 * t) / 2, r.height - t)
         var p = Path()
@@ -52,14 +55,23 @@ struct NotchRootView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            NotchShape(topRadius: expanded ? 12 : 6, bottomRadius: expanded ? 22 : (controller.state == .hovering ? 12 : 9))
+            NotchShape(topRadius: expanded ? 12 : 6, bottomRadius: expanded ? 22 : (controller.state == .hovering ? 12 : 9),
+                       floating: expanded && controller.showsDetached)
                 .fill(fill)
                 .frame(width: shapeSize.width, height: shapeSize.height)
                 .shadow(color: .black.opacity(expanded ? 0.35 : 0), radius: 14, y: 6)
+                .overlay(alignment: .bottomTrailing) {
+                    if expanded {
+                        ResizeGrip(controller: controller, color: settings.theme.secondary)
+                            .padding(.trailing, controller.showsDetached ? 5 : 16)
+                            .padding(.bottom, 5)
+                    }
+                }
 
             if expanded {
                 ScratchpadView(controller: controller)
-                    .frame(width: controller.padSize.width - 24, height: controller.padSize.height)
+                    .frame(width: controller.padSize.width - (controller.showsDetached ? 16 : 24),
+                           height: controller.padSize.height)
                     .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
             }
         }
@@ -127,7 +139,9 @@ struct ScratchpadView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Color.clear.frame(width: controller.notch.rect.width + 4, height: 1)
+            if !controller.showsDetached {
+                Color.clear.frame(width: controller.notch.rect.width + 4, height: 1)
+            }
 
             HStack(spacing: 2) {
                 iconButton(settings.keepOpen ? "pin.fill" : "pin",
@@ -135,12 +149,20 @@ struct ScratchpadView: View {
                            tint: settings.keepOpen ? .accentColor : nil) {
                     settings.keepOpen.toggle()
                 }
+                if controller.showsDetached {
+                    iconButton("arrow.up.to.line", help: "Put back in the notch") { controller.dock() }
+                }
                 iconButton("gearshape", help: "Settings") { controller.openSettings() }
                 iconButton("chevron.up", help: "Close (Esc)") { controller.collapse() }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .frame(height: headerHeight)
+        .contentShape(Rectangle())
+        .help("Drag to move")
+        .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .global)
+            .onChanged { _ in controller.moveDrag() }
+            .onEnded { _ in controller.endMove() })
     }
 
     private var footer: some View {
@@ -152,7 +174,8 @@ struct ScratchpadView: View {
         }
         .font(.system(size: 10))
         .foregroundColor(theme.secondary)
-        .padding(.horizontal, 6)
+        .padding(.leading, 6)
+        .padding(.trailing, 22)
         .padding(.top, 4)
     }
 
@@ -247,5 +270,30 @@ struct PadTextView: NSViewRepresentable {
             guard let tv = notification.object as? NSTextView else { return }
             parent.text = tv.string
         }
+    }
+}
+
+/// Drag the bottom-right corner to resize. The new size is remembered.
+struct ResizeGrip: View {
+    @ObservedObject var controller: NotchController
+    var color: Color
+
+    var body: some View {
+        Canvas { ctx, size in
+            for i in 0..<3 {
+                let o = CGFloat(i) * 4
+                var p = Path()
+                p.move(to: CGPoint(x: size.width - 2, y: o + 2))
+                p.addLine(to: CGPoint(x: o + 2, y: size.height - 2))
+                ctx.stroke(p, with: .color(color), lineWidth: 1.2)
+            }
+        }
+        .frame(width: 12, height: 12)
+        .padding(3)
+        .contentShape(Rectangle())
+        .help("Drag to resize")
+        .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { _ in controller.resizeDrag() }
+            .onEnded { _ in controller.endResize() })
     }
 }

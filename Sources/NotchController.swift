@@ -58,6 +58,8 @@ final class NotchController: ObservableObject {
     @Published private(set) var mouseInside = false
     @Published private(set) var focusToken = 0
     @Published private(set) var notch: NotchInfo = NotchInfo.current()
+    /// Drawn as a floating card (not a notch) — true while dragged away or when restored detached.
+    @Published private(set) var showsDetached = false
 
     let panel = NotchPanel()
     var onOpenSettings: (() -> Void)?
@@ -73,6 +75,14 @@ final class NotchController: ObservableObject {
     private weak var previousApp: NSRunningApplication?
 
     private let margin: CGFloat = 40
+    static let minSize = CGSize(width: 320, height: 170)
+    static let maxSize = CGSize(width: 1100, height: 760)
+
+    private var moveStartMouse: NSPoint?
+    private var moveStartFrame = NSRect.zero
+    private var resizeStartMouse: NSPoint?
+    private var resizeStartSize = CGSize.zero
+    private var resizeStartLeft: CGFloat = 0
 
     func start() {
         let host = FirstMouseHostingView(rootView: NotchRootView(controller: self))
@@ -92,6 +102,15 @@ final class NotchController: ObservableObject {
             return e
         }) { monitors.append(l) }
 
+        settings.$keepOpen.dropFirst().sink { [weak self] on in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.settings.wasOpen = on && self.state == .expanded
+            }
+        }.store(in: &bag)
+        settings.$customWidth.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
+        settings.$customHeight.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
+        settings.$detached.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
         settings.$size.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
         settings.$hideFromCapture.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.applyPrivacy() } }.store(in: &bag)
 
@@ -106,25 +125,140 @@ final class NotchController: ObservableObject {
         DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main, using: lockNow)
     }
 
+    /// Called once at launch: forget or restore the last size/position, and reopen if it was pinned open.
+    func restoreOnLaunch() {
+        if !settings.rememberLayout { settings.resetLayout() }
+        if settings.keepOpen && settings.wasOpen {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.expand(byHover: false) }
+        } else {
+            settings.wasOpen = false
+        }
+    }
+
     // MARK: Geometry
 
-    var padSize: CGSize { settings.size.size }
+    var padSize: CGSize {
+        if settings.hasCustomSize {
+            return CGSize(width: min(max(settings.customWidth, Self.minSize.width), Self.maxSize.width),
+                          height: min(max(settings.customHeight, Self.minSize.height), Self.maxSize.height))
+        }
+        return settings.size.size
+    }
 
     /// Area that counts as "over the notch".
     private var hotRect: CGRect { notch.rect.insetBy(dx: -14, dy: -8) }
 
+    /// The visible pad, in screen coordinates (always top-centred in the panel).
     private var expandedRect: CGRect {
         let s = padSize
-        return CGRect(x: notch.rect.midX - s.width / 2, y: notch.screenFrame.maxY - s.height, width: s.width, height: s.height)
+        let f = panel.frame
+        return CGRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height)
+    }
+
+    /// Panel frame for the docked (notch) spot, or the remembered floating spot.
+    private func panelFrame(floating: Bool) -> NSRect {
+        let s = padSize
+        let sf = notch.screenFrame
+        if floating {
+            let w = s.width + margin * 2
+            let h = s.height + margin
+            var midX = notch.rect.midX + CGFloat(settings.offsetX)
+            var top = sf.maxY - CGFloat(settings.offsetY)
+            // Keep the whole pad on screen, even if the display changed since last time.
+            midX = min(max(midX, sf.minX + s.width / 2), sf.maxX - s.width / 2)
+            top = min(max(top, sf.minY + s.height), sf.maxY)
+            return NSRect(x: midX - w / 2, y: top - h, width: w, height: h)
+        }
+        let w = max(s.width, notch.rect.width + 80) + margin * 2
+        let h = s.height + margin
+        return NSRect(x: notch.rect.midX - w / 2, y: sf.maxY - h, width: w, height: h)
     }
 
     func layout() {
         notch = NotchInfo.current()
-        let s = padSize
-        let w = max(s.width, notch.rect.width + 80) + margin * 2
-        let h = s.height + margin
-        let frame = NSRect(x: notch.rect.midX - w / 2, y: notch.screenFrame.maxY - h, width: w, height: h)
-        panel.setFrame(frame, display: true)
+        let floating = state == .expanded && settings.detached
+        showsDetached = floating
+        panel.setFrame(panelFrame(floating: floating), display: true)
+    }
+
+    // MARK: Move and resize
+
+    func moveDrag() {
+        guard state == .expanded else { return }
+        let m = NSEvent.mouseLocation
+        guard let m0 = moveStartMouse else {
+            moveStartMouse = m
+            moveStartFrame = panel.frame
+            openedByHover = false
+            leaveWork?.cancel(); leaveWork = nil
+            return
+        }
+        var f = moveStartFrame
+        f.origin.x += m.x - m0.x
+        f.origin.y += m.y - m0.y
+        let sf = notch.screenFrame
+        if f.maxY > sf.maxY { f.origin.y = sf.maxY - f.height }
+        panel.setFrame(f, display: true)
+        let dx = f.midX - notch.rect.midX
+        let dy = sf.maxY - f.maxY
+        let away = abs(dx) > 8 || dy > 8
+        if away != showsDetached { showsDetached = away }
+    }
+
+    func endMove() {
+        guard moveStartMouse != nil else { return }
+        moveStartMouse = nil
+        let f = panel.frame
+        let dx = f.midX - notch.rect.midX
+        let dy = notch.screenFrame.maxY - f.maxY
+        if abs(dx) < 60 && dy < 36 {
+            dock()                    // close enough: snap back into the notch
+        } else {
+            settings.offsetX = Double(dx)
+            settings.offsetY = Double(dy)
+            settings.detached = true
+        }
+    }
+
+    func resizeDrag() {
+        guard state == .expanded else { return }
+        let m = NSEvent.mouseLocation
+        guard let m0 = resizeStartMouse else {
+            resizeStartMouse = m
+            resizeStartSize = padSize
+            resizeStartLeft = expandedRect.minX
+            openedByHover = false
+            leaveWork?.cancel(); leaveWork = nil
+            return
+        }
+        let dx = m.x - m0.x
+        let dy = m.y - m0.y
+        // Docked pads grow from the centre, so the corner follows the pointer at twice the speed.
+        var w = resizeStartSize.width + (settings.detached ? dx : dx * 2)
+        var h = resizeStartSize.height - dy
+        w = min(max(w, Self.minSize.width), Self.maxSize.width).rounded()
+        h = min(max(h, Self.minSize.height), Self.maxSize.height).rounded()
+        settings.customWidth = Double(w)
+        settings.customHeight = Double(h)
+        if settings.detached {
+            settings.offsetX = Double(resizeStartLeft + w / 2 - notch.rect.midX)   // keep the left edge still
+        }
+        layout()
+    }
+
+    func endResize() { resizeStartMouse = nil }
+
+    /// Put the pad back in the notch (keeps its size).
+    func dock() {
+        settings.detached = false
+        settings.offsetX = 0
+        settings.offsetY = 0
+        showsDetached = false
+        guard state == .expanded else { return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.22
+            panel.animator().setFrame(panelFrame(floating: false), display: true)
+        }
     }
 
     private func applyPrivacy() {
@@ -201,6 +335,8 @@ final class NotchController: ObservableObject {
         if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
         mouseInside = true
         state = .expanded
+        layout()
+        if settings.keepOpen { settings.wasOpen = true }
         panel.ignoresMouseEvents = false
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
@@ -212,7 +348,23 @@ final class NotchController: ObservableObject {
         guard state == .expanded else { state = .collapsed; return }
         leaveWork?.cancel(); leaveWork = nil
         NoteStore.shared.saveNow()
+        moveStartMouse = nil; resizeStartMouse = nil
+        settings.wasOpen = false
+        let wasFloating = showsDetached
         state = .collapsed
+        if wasFloating {
+            // Fade out where it floats, then tuck back into the notch.
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.15
+                panel.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                guard let self = self else { return }
+                if self.state != .expanded { self.layout() }
+                self.panel.alphaValue = 1
+            })
+        } else {
+            layout()
+        }
         collapsedAt = Date()
         if settings.lockEnabled && settings.lockAfter == .immediately { LockManager.shared.lock() }
         panel.ignoresMouseEvents = true

@@ -12,6 +12,9 @@ private struct OptionLabel: View {
     }
 }
 
+/// Lets the settings window ask the notch controller to re-dock the pad.
+enum NotchActions { static var dock: (() -> Void)? }
+
 struct SettingsView: View {
     @ObservedObject var s = Settings.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -51,8 +54,19 @@ struct SettingsView: View {
             }
 
             Section("Look") {
-                Picker("Size", selection: $s.size) {
+                Picker("Size", selection: Binding(get: { s.size }, set: { new in
+                    s.size = new
+                    s.customWidth = 0; s.customHeight = 0   // picking a preset replaces a dragged size
+                })) {
                     ForEach(PadSize.allCases) { Text($0.label).tag($0) }
+                }
+                if s.hasCustomSize {
+                    LabeledContent("Your size") {
+                        HStack {
+                            Text("\(Int(s.customWidth)) × \(Int(s.customHeight))").monospacedDigit()
+                            Button("Use preset") { s.customWidth = 0; s.customHeight = 0 }
+                        }
+                    }
                 }
                 Picker("Colour", selection: $s.theme) {
                     ForEach(PadTheme.allCases) { Text($0.label).tag($0) }
@@ -74,6 +88,21 @@ struct SettingsView: View {
                 }
                 Toggle(isOn: $s.showWordCount) {
                     OptionLabel(title: "Show word count", detail: "A small counter along the bottom.")
+                }
+            }
+
+            Section("Size and position") {
+                Toggle(isOn: $s.rememberLayout) {
+                    OptionLabel(title: "Remember size and position",
+                                detail: "After a restart it opens at the size you last dragged it to, in the same spot. If it was kept open, it reopens too.")
+                }
+                Text("Drag the top bar to move it anywhere. Drag the bottom-right corner to resize. Drop it near the notch to tuck it back in.")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button("Put it back in the notch") { NotchActions.dock?() }
+                        .disabled(!s.detached)
+                    Button("Reset size and position") { s.resetLayout(); NotchActions.dock?() }
+                        .disabled(!s.detached && !s.hasCustomSize)
                 }
             }
 
@@ -141,6 +170,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 640)
+        .frame(width: 520, height: 680)
     }
 }

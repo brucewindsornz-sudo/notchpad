@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.onOpenSettings = { [weak self] in self?.showSettings() }
         controller.isSettingsVisible = { [weak self] in self?.settingsWindow?.isVisible ?? false }
         controller.start()
+        NotchActions.dock = { [weak self] in self?.controller.dock() }
+        controller.restoreOnLaunch()
 
         hotKey = HotKey { [weak self] in self?.controller.toggle() }
         settings.$hotkeyEnabled.sink { [weak self] on in
@@ -59,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Open or Close Scratchpad  (⌃⌥N)", action: #selector(togglePad), keyEquivalent: "").target = self
         let pin = menu.addItem(withTitle: "Keep Open", action: #selector(togglePin), keyEquivalent: "")
         pin.target = self
+        menu.addItem(withTitle: "Put Back in Notch", action: #selector(dockPad), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit NotchPad", action: #selector(quit), keyEquivalent: "q").target = self
@@ -69,12 +72,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePad() { controller.toggle() }
     @objc private func togglePin() { settings.keepOpen.toggle() }
+    @objc private func dockPad() { controller.dock() }
     @objc private func openSettings() { showSettings() }
     @objc private func quit() { NSApp.terminate(nil) }
 
     func showSettings() {
         if settingsWindow == nil {
-            let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 640),
+            let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 680),
                                styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
             win.title = "NotchPad Settings"
             win.contentViewController = NSHostingController(rootView: SettingsView())
