@@ -1,0 +1,146 @@
+import SwiftUI
+import ServiceManagement
+
+private struct OptionLabel: View {
+    let title: String
+    let detail: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+struct SettingsView: View {
+    @ObservedObject var s = Settings.shared
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var confirmErase = false
+    @State private var confirmReset = false
+
+    var body: some View {
+        Form {
+            Section("How it opens and closes") {
+                Toggle(isOn: $s.keepOpen) {
+                    OptionLabel(title: "Keep the scratchpad open",
+                                detail: "It stays open until you close it with the arrow button or Esc. Same as the pin button.")
+                }
+                Toggle(isOn: $s.openOnHover) {
+                    OptionLabel(title: "Open just by hovering",
+                                detail: "Opens when you rest the pointer on the notch, no click needed. Closes when you move away.")
+                }
+                Toggle(isOn: $s.closeOnClickOutside) {
+                    OptionLabel(title: "Close when I click somewhere else",
+                                detail: "Clicking another app tucks it back into the notch. Ignored while it's kept open.")
+                }
+                Toggle(isOn: $s.hotkeyEnabled) {
+                    OptionLabel(title: "Keyboard shortcut: Control + Option + N",
+                                detail: "Opens or closes the scratchpad from anywhere.")
+                }
+            }
+
+            Section("Hover feel") {
+                Toggle(isOn: $s.hoverNudge) {
+                    OptionLabel(title: "Nudge when the pointer is over the notch",
+                                detail: "The notch grows a little so you know it's there.")
+                }
+                Toggle(isOn: $s.haptics) {
+                    OptionLabel(title: "Gentle trackpad tap on hover",
+                                detail: "A light click you feel on Force Touch trackpads.")
+                }
+            }
+
+            Section("Look") {
+                Picker("Size", selection: $s.size) {
+                    ForEach(PadSize.allCases) { Text($0.label).tag($0) }
+                }
+                Picker("Colour", selection: $s.theme) {
+                    ForEach(PadTheme.allCases) { Text($0.label).tag($0) }
+                }
+                Picker("Font", selection: $s.font) {
+                    ForEach(PadFont.allCases) { Text($0.label).tag($0) }
+                }
+                LabeledContent("Text size") {
+                    HStack {
+                        Slider(value: $s.fontSize, in: 11...24, step: 1)
+                        Text("\(Int(s.fontSize)) pt").monospacedDigit().frame(width: 40, alignment: .trailing)
+                    }
+                }
+                LabeledContent("See-through") {
+                    HStack {
+                        Slider(value: $s.opacity, in: 0.6...1.0)
+                        Text(s.opacity > 0.99 ? "Solid" : "\(Int((1 - s.opacity) * 100))%").monospacedDigit().frame(width: 40, alignment: .trailing)
+                    }
+                }
+                Toggle(isOn: $s.showWordCount) {
+                    OptionLabel(title: "Show word count", detail: "A small counter along the bottom.")
+                }
+            }
+
+            Section("Privacy") {
+                Toggle(isOn: $s.hideFromCapture) {
+                    OptionLabel(title: "Hide from screenshots and screen sharing",
+                                detail: "Keeps your notes out of Zoom, Teams, FaceTime shares and screenshots.")
+                }
+                Toggle(isOn: $s.lockEnabled) {
+                    OptionLabel(title: "Lock with Touch ID",
+                                detail: "Asks for your fingerprint or Mac password before showing notes. Also locks when your Mac locks or sleeps.")
+                }
+                if s.lockEnabled {
+                    Picker("Ask again", selection: $s.lockAfter) {
+                        ForEach(LockAfter.allCases) { Text($0.label).tag($0) }
+                    }
+                }
+                Toggle(isOn: $s.blurWhenAway) {
+                    OptionLabel(title: "Blur notes when the pointer leaves",
+                                detail: "Handy when it's kept open: text is blurred until you point at it.")
+                }
+                Picker(selection: $s.autoErase) {
+                    ForEach(AutoErase.allCases) { Text($0.label).tag($0) }
+                } label: {
+                    OptionLabel(title: "Erase notes automatically", detail: "For notes you only need for a while.")
+                }
+                Toggle(isOn: $s.spellCheck) {
+                    OptionLabel(title: "Spell check",
+                                detail: "Underlines typos. Checking happens on this Mac.")
+                }
+                Button("Erase my notes now…", role: .destructive) { confirmErase = true }
+                    .confirmationDialog("Erase everything in the scratchpad?", isPresented: $confirmErase) {
+                        Button("Erase", role: .destructive) { NoteStore.shared.eraseAll() }
+                    } message: { Text("This can't be undone.") }
+            }
+
+            Section("General") {
+                Toggle(isOn: Binding(get: { launchAtLogin }, set: { on in
+                    do {
+                        if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                    } catch { NSLog("NotchPad: login item change failed: \(error.localizedDescription)") }
+                    launchAtLogin = SMAppService.mainApp.status == .enabled
+                })) {
+                    OptionLabel(title: "Start when I log in", detail: "Works best once NotchPad is in your Applications folder.")
+                }
+                Toggle(isOn: $s.showMenuBarIcon) {
+                    OptionLabel(title: "Show icon in the menu bar",
+                                detail: "If hidden, open settings with the gear inside the scratchpad.")
+                }
+                HStack {
+                    Button("Reset all settings…") { confirmReset = true }
+                        .confirmationDialog("Put every setting back to how it started?", isPresented: $confirmReset) {
+                            Button("Reset") { s.resetToDefaults() }
+                        } message: { Text("Your notes are not touched.") }
+                    Spacer()
+                    Button("Quit NotchPad") { NSApp.terminate(nil) }
+                }
+            }
+
+            Section {
+                Label("NotchPad has no internet access. Notes are encrypted on this Mac with a key kept in your Keychain, and there's no tracking of any kind.",
+                      systemImage: "lock.shield")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 520, height: 640)
+    }
+}
