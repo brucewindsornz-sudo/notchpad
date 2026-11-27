@@ -133,9 +133,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             win.contentViewController = NSHostingController(rootView: SettingsView())
             win.isReleasedWhenClosed = false
             // Same as the pad: keep the settings window out of screenshots, screen sharing and recorders.
-            win.sharingType = settings.hideFromCapture ? .none : .readOnly
+            let testCapture = ProcessInfo.processInfo.environment["NOTCHPAD_ALLOW_CAPTURE"] != nil   // build checks only
+            win.sharingType = settings.hideFromCapture && !testCapture ? .none : .readOnly
             settings.$hideFromCapture.dropFirst().sink { [weak win] on in
-                DispatchQueue.main.async { win?.sharingType = on ? .none : .readOnly }
+                DispatchQueue.main.async { win?.sharingType = on && !testCapture ? .none : .readOnly }
             }.store(in: &bag)
             win.center()
             settingsWindow = win

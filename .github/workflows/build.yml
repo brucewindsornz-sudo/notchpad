@@ -8,6 +8,7 @@ permissions:
   contents: write
 jobs:
   build:
+    name: Build (Intel Mac)
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
@@ -35,21 +36,109 @@ jobs:
         with:
           name: NotchPad
           path: build/NotchPad.dmg
+
+  apple-silicon:
+    name: Test on Apple Silicon Mac
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: NotchPad
+      - name: Install from the disk image
+        run: |
+          MNT=$(hdiutil attach -nobrowse -readonly -noverify NotchPad.dmg | awk -F'\t' '/\/Volumes\//{print $NF}')
+          ditto "$MNT/NotchPad.app" /Applications/NotchPad.app
+          hdiutil detach "$MNT" -quiet
+          echo "Chip: $(uname -m)   macOS $(sw_vers -productVersion)"
+          lipo -archs /Applications/NotchPad.app/Contents/MacOS/NotchPad | grep -q arm64 && echo "OK: app contains Apple Silicon code" || { echo "No arm64 slice"; exit 1; }
+          codesign --verify --deep /Applications/NotchPad.app && echo "OK: signature valid"
+      - name: Launch and stay running
+        run: |
+          open /Applications/NotchPad.app
+          sleep 6
+          pgrep -x NotchPad && echo "OK: running natively on Apple Silicon"
+          pkill -x NotchPad || true; sleep 1
+      - run: brew install cliclick
+      - name: Open the pad, check its graphics, click the pin button
+        run: |
+          APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> pad.log &
+          sleep 5
+          pgrep -x NotchPad >/dev/null || { cat pad.log; echo "Crashed when opening the pad"; exit 1; }
+          screencapture -x pad-open.png || true
+          read X Y < <(grep NOTCHPAD_PIN_AT pad.log | tail -1 | sed 's/.*x=\([0-9-]*\) y=\([0-9-]*\)/\1 \2/')
+          echo "Clicking pin at $X,$Y"
+          cliclick m:$X,$Y w:300 c:$X,$Y
+          sleep 2
+          screencapture -x pad-pinned.png || true
+          cat pad.log
+          pgrep -x NotchPad >/dev/null || { echo "Crashed after clicking"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
+          grep -q "NOTCHPAD_PIN=true" pad.log && echo "OK: pin button works" || { echo "Pin click did nothing"; exit 1; }
+      - name: Load a Ghostty theme and show it in the pad and Settings
+        run: |
+          APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad
+          C=~/Library/Containers/com.newzeebuild.notchpad/Data
+          mkdir -p "$C/Library/Application Support/NotchPad/Themes"
+          cp "tests/Ayu Mirage" "$C/Library/Application Support/NotchPad/Themes/"
+          defaults write "$C/Library/Preferences/com.newzeebuild.notchpad" theme "custom:Ayu Mirage"
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> theme.log &
+          sleep 5
+          screencapture -x pad-themed.png || true
+          pkill -x NotchPad || true; sleep 1
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_SETTINGS=1 NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2>> theme.log &
+          sleep 6
+          screencapture -x settings.png || true
+          pgrep -x NotchPad >/dev/null || { cat theme.log; echo "Crashed with Settings open"; exit 1; }
+          pkill -x NotchPad || true
+          cat theme.log
+          grep -q 'NOTCHPAD_THEMES custom=\["Ayu Mirage"\]' theme.log && echo "OK: Ghostty theme loaded" || { echo "Theme not loaded"; exit 1; }
+      - name: Crash report
+        if: failure()
+        run: |
+          f=$(ls -t ~/Library/Logs/DiagnosticReports/NotchPad* 2>/dev/null | head -1) || true
+          [ -n "$f" ] && python3 -c "import json,sys; t=open(sys.argv[1]).read().split('\n',1)[1]; d=json.loads(t); imgs=d['usedImages']; th=[x for x in d['threads'] if x.get('triggered')][0]; [print(i, imgs[fr['imageIndex']].get('name','?'), fr.get('symbol','?')) for i,fr in enumerate(th['frames'][:40])]" "$f" || echo "no crash report"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apple-silicon-screenshots
+          path: '*.png'
+
+  release:
+    name: Publish release
+    needs: [build, apple-silicon]
+    # Real Apple Silicon failures block the release. If GitHub had no Apple Silicon machine free
+    # (the job is cancelled or never starts), the release still goes out.
+    if: >-
+      always() && startsWith(github.ref, 'refs/tags/v') &&
+      needs.build.result == 'success' && needs.apple-silicon.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: NotchPad
+      - name: Note if Apple Silicon wasn't tested
+        if: needs.apple-silicon.result != 'success'
+        run: echo "::warning::Apple Silicon test result was '${{ needs.apple-silicon.result }}' (no machine available). Released after the Intel checks only."
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" build/NotchPad.dmg --title "NotchPad $GITHUB_REF_NAME" \
-            --notes "Download NotchPad.dmg, open it and drag NotchPad to Applications. First launch: right-click NotchPad › Open (it isn't Apple-notarised)."
+          gh release create "$GITHUB_REF_NAME" NotchPad.dmg --title "NotchPad $GITHUB_REF_NAME" \
+            --notes "Install with Homebrew: brew install --cask notchpad (see README). Or download NotchPad.dmg and drag NotchPad to Applications."
       - name: Point the Homebrew cask at this release
-        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
           VER=${GITHUB_REF_NAME#v}
-          SHA=$(shasum -a 256 build/NotchPad.dmg | cut -d' ' -f1)
-          git fetch origin master && git checkout -B master origin/master
-          sed -i '' "s/^  version \".*\"/  version \"$VER\"/; s/^  sha256 \".*\"/  sha256 \"$SHA\"/" Casks/notchpad.rb
+          SHA=$(sha256sum NotchPad.dmg | cut -d' ' -f1)
+          git checkout -B master origin/master
+          sed -i "s/^  version \".*\"/  version \"$VER\"/; s/^  sha256 \".*\"/  sha256 \"$SHA\"/" Casks/notchpad.rb
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git diff --quiet || { git commit -am "Cask: notchpad $VER"; git push origin master; }
