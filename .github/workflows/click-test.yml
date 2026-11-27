@@ -2,7 +2,12 @@ name: Click test
 on: workflow_dispatch
 jobs:
   click:
-    runs-on: macos-15-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: ./build.sh
@@ -21,8 +26,13 @@ jobs:
           cat app.log
           pgrep -x NotchPad >/dev/null && echo "still running" || echo "NOT RUNNING"
           grep -q "NOTCHPAD_PIN=true" app.log && echo "PIN CLICK WORKED" || { echo "PIN CLICK DID NOTHING"; exit 1; }
+      - name: Crash report
+        if: always()
+        run: |
+          f=$(ls -t ~/Library/Logs/DiagnosticReports/NotchPad* 2>/dev/null | head -1) || true
+          [ -n "$f" ] && python3 -c "import json,sys; t=open(sys.argv[1]).read().split('\n',1)[1]; d=json.loads(t); imgs=d['usedImages']; th=[x for x in d['threads'] if x.get('triggered')][0]; [print(i, imgs[fr['imageIndex']].get('name','?'), fr.get('symbol','?')) for i,fr in enumerate(th['frames'][:40])]" "$f" || echo "no crash report"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: screenshots
+          name: screenshots-${{ matrix.os }}
           path: '*.png'
