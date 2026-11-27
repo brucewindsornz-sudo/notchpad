@@ -103,7 +103,7 @@ struct ScratchpadView: View {
     @ObservedObject var themes = ThemeStore.shared
     private var theme: PadThemeSpec { themes.current }
     /// Height of the menu bar strip beside the notch. Nothing clickable goes here: macOS's menu bar takes those clicks.
-    private var menuBarHeight: CGFloat { controller.notch.rect.height }
+    private var menuBarHeight: CGFloat { controller.notch.menuBarHeight }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -240,12 +240,29 @@ struct ScratchpadView: View {
                 }
                 iconButton("gearshape", help: "Settings") { controller.openSettings() }
                 iconButton("chevron.up", help: "Close (Esc)") { controller.collapse() }
+                    .background(GeometryReader { g in
+                        Color.clear.onAppear {
+                            // Report the close button's on-screen centre (top-left origin) for the click test.
+                            let f = g.frame(in: .global), w = controller.panel.frame
+                            let screenTop = controller.notch.screenFrame.maxY
+                            debugLog("NOTCHPAD_CLOSE_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY)) menubar=\(Int(controller.notch.menuBarHeight))")
+                        }
+                    })
             }
         }
         .padding(.top, controller.showsDetached ? 6 : 2)
         .frame(height: 30)
         .contentShape(Rectangle())
         .help("Drag to move")
+        // Right-click anywhere on the top bar: a way out that doesn't depend on the menu bar icon.
+        .contextMenu {
+            Button("Close") { controller.collapse() }
+            Button("Put Back in Notch") { controller.dock() }
+            Button("Reset Position and Size") { controller.resetPosition() }
+            Divider()
+            Button("Settings…") { controller.openSettings() }
+            Button("Quit NotchPad") { NSApp.terminate(nil) }
+        }
         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .global)
             .onChanged { _ in controller.moveDrag() }
             .onEnded { _ in controller.endMove() })
@@ -383,6 +400,11 @@ struct MoveHandle: View {
                 hovering = inside
                 if dragging { return }                 // the drag sorts the cursor out when it ends
                 if inside { NSCursor.openHand.push() } else { NSCursor.pop() }
+            }
+            .onDisappear {
+                // Closed mid-hover or mid-drag: don't leave a hand cursor pushed.
+                if dragging || hovering { NSCursor.pop() }
+                dragging = false; hovering = false
             }
             .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { _ in
