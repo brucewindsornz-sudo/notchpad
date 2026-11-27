@@ -62,7 +62,7 @@ selection-background = #33415e
 - Clipboard: copies clear themselves after 1 minute by default (30 s to 5 min, or never),
   and when your Mac locks or sleeps. Only NotchPad's own copy is ever wiped automatically.
   Copies stay off Universal Clipboard and are marked so clipboard history apps skip them.
-  "Clear Clipboard" in the menu bar icon and Settings wipes the clipboard on demand.
+  The clear-clipboard button in the pad (next to Copy), the menu bar icon and Settings wipe the clipboard on demand.
 
 ## Other ways to install
 Without Homebrew, open Terminal and paste:

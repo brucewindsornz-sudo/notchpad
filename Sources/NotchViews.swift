@@ -97,6 +97,7 @@ struct ScratchpadView: View {
     @ObservedObject var lock = LockManager.shared
     @State private var confirmErase = false
     @State private var copied = false
+    @State private var clipCleared = false
 
     @ObservedObject var themes = ThemeStore.shared
     private var theme: PadThemeSpec { themes.current }
@@ -145,6 +146,40 @@ struct ScratchpadView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
                 }
                 .disabled(lock.isLocked || store.text.isEmpty)
+                // Clear clipboard: wipes whatever is on the clipboard, from any app. Works while locked too.
+                Button {
+                    ClipboardGuard.shared.clearNow()
+                    clipCleared = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { clipCleared = false }
+                } label: {
+                    Group {
+                        if clipCleared {
+                            Image(systemName: "checkmark")
+                        } else {
+                            Image(systemName: "doc.on.clipboard")
+                                .overlay(alignment: .bottomTrailing) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 7, weight: .bold))
+                                        .offset(x: 3, y: 2)
+                                }
+                        }
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 22, height: 20)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(theme.secondary)
+                .help("Clear clipboard")
+                .accessibilityLabel("Clear clipboard")
+                .background(GeometryReader { g in
+                    Color.clear.onAppear {
+                        // Report this button's on-screen centre (top-left origin) for the click test.
+                        let f = g.frame(in: .global), w = controller.panel.frame
+                        let screenTop = controller.notch.screenFrame.maxY
+                        debugLog("NOTCHPAD_CLEARCLIP_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
+                    }
+                })
                 iconButton(confirmErase ? "trash.fill" : "trash", help: confirmErase ? "Click again to erase" : "Erase note",
                            tint: confirmErase ? .red : nil) {
                     if confirmErase {

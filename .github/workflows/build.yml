@@ -79,6 +79,22 @@ jobs:
           pgrep -x NotchPad >/dev/null || { echo "Crashed after clicking"; exit 1; }
           pkill -x NotchPad || true; sleep 1
           grep -q "NOTCHPAD_PIN=true" pad.log && echo "OK: pin button works" || { echo "Pin click did nothing"; exit 1; }
+      - name: Click the clear-clipboard button
+        run: |
+          APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> clip.log &
+          sleep 5
+          echo "copied from another app" | pbcopy
+          [ -n "$(pbpaste)" ] || { echo "Could not fill clipboard"; exit 1; }
+          read X Y < <(grep NOTCHPAD_CLEARCLIP_AT clip.log | tail -1 | sed 's/.*x=\([0-9-]*\) y=\([0-9-]*\)/\1 \2/')
+          echo "Clicking clear clipboard at $X,$Y"
+          cliclick m:$X,$Y w:600 c:$X,$Y
+          sleep 0.4
+          screencapture -x pad-clipboard-cleared.png || true
+          sleep 1
+          pgrep -x NotchPad >/dev/null || { cat clip.log; echo "Crashed after clicking"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
+          [ -z "$(pbpaste)" ] && echo "OK: clear clipboard button works" || { echo "Clipboard still has: $(pbpaste)"; exit 1; }
       - name: Load a Ghostty theme and show it in the pad and Settings
         run: |
           APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad
