@@ -1,6 +1,6 @@
 cask "notchpad" do
-  version "1.1.1"
-  sha256 "1f7bfe259d2fcfd0d329e79bda5b60b93247a166d51f40fb86b46cca01d10037"
+  version "1.1.2"
+  sha256 "6a8b1fb2c982847a49d1f6c23ec48586cad1575ce60817dffe27d26f5ce94551"
 
   url "https://github.com/brucewindsornz-sudo/notchpad/releases/download/v#{version}/NotchPad.dmg"
   name "NotchPad"
