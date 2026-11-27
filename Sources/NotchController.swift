@@ -285,7 +285,7 @@ final class NotchController: ObservableObject {
         if moveStartMouse != nil, springTimer == nil { cancelMove() }
         guard moveStartMouse == nil else { return }
         let m = NSEvent.mouseLocation
-        let lead = CGSize(width: min(max(translation.width, -40), 40), height: min(max(translation.height, -40), 40))
+        let lead = translation.width.isFinite && translation.height.isFinite ? translation : .zero
         moveStartMouse = NSPoint(x: m.x - lead.width, y: m.y + lead.height)
         moveStartFrame = panel.frame
         moveStartDetached = showsDetached

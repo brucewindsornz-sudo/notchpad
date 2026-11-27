@@ -80,7 +80,7 @@ click_close stuck2.log $((LEFT1-LEFT0)) 2
 echo "OK: after a sideways drag it floats below the menu bar and Close works"
 
 echo "== 3. ...and it comes back in a usable spot after a restart"
-launch stuck3.log
+launch stuck3.log NOTCHPAD_DEBUG_OPEN=1
 below_menu_bar stuck3.log
 click_close stuck3.log 0 0
 echo "OK: it restarts below the menu bar and Close works"
