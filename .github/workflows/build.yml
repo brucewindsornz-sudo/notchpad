@@ -40,7 +40,8 @@ jobs:
   apple-silicon:
     name: Test on Apple Silicon Mac
     needs: build
-    runs-on: macos-15
+    # macos-26 is Apple Silicon; the macos-15 Apple Silicon pool is often too busy to pick up jobs.
+    runs-on: macos-26
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
