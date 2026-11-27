@@ -25,6 +25,7 @@ struct SettingsView: View {
     @State private var clipboardCleared = false
 
     var body: some View {
+        ScrollViewReader { scroller in
         Form {
             Section("How it opens and closes") {
                 Toggle(isOn: $s.keepOpen) {
@@ -124,6 +125,26 @@ struct SettingsView: View {
                 }
                 Toggle(isOn: $s.showWordCount) {
                     OptionLabel(title: "Show word count", detail: "A small counter along the bottom.")
+                }
+            }
+
+            Section("Pad buttons") {
+                Text("The buttons along the top of the pad. Switch off the ones you don't use. Settings and Close always stay, so you can't lock yourself out.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .id("padButtons")
+                ForEach(PadButton.allCases) { b in
+                    Toggle(isOn: Binding(get: { s.shows(b) }, set: { s.setShows(b, $0) })) {
+                        HStack(alignment: .top, spacing: 10) {
+                            PadButtonIcon(button: b)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20, height: 18)
+                            OptionLabel(title: b.title, detail: b.detail)
+                        }
+                    }
+                    .disabled(!b.canHide)
+                }
+                if !s.hiddenButtons.isEmpty {
+                    Button("Show all buttons") { s.hiddenButtons = [] }
                 }
             }
 
@@ -237,7 +258,14 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 560, height: 760)
-        .onAppear { themes.loadCustom() }
+        .onAppear {
+            themes.loadCustom()
+            // Build checks only: jump to a section so its screenshot can be looked at.
+            if let section = ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_SETTINGS"], section.count > 1 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { scroller.scrollTo(section, anchor: .top) }
+            }
+        }
+        }
     }
 
     private var filteredThemes: [PadThemeSpec] {

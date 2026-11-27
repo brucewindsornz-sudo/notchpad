@@ -236,7 +236,24 @@ struct ScratchpadView: View {
                     })
                 }
                 if controller.showsDetached && settings.shows(.dock) {
-                    iconButton("arrow.up.to.line", help: "Put back in the notch") { controller.dock() }
+                    // Boomerang: flies the pad back to the notch in a curve.
+                    Button { controller.boomerang() } label: {
+                        PadButtonIcon(button: .dock)
+                            .frame(width: 22, height: 20)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(theme.secondary)
+                    .help("Boomerang: send it back to the notch")
+                    .accessibilityLabel("Boomerang: send it back to the notch")
+                    .background(GeometryReader { g in
+                        Color.clear.onAppear {
+                            // Report this button's on-screen centre (top-left origin) for the click test.
+                            let f = g.frame(in: .global), w = controller.panel.frame
+                            let screenTop = controller.notch.screenFrame.maxY
+                            debugLog("NOTCHPAD_BOOMERANG_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
+                        }
+                    })
                 }
                 iconButton("gearshape", help: "Settings") { controller.openSettings() }
                 iconButton("chevron.up", help: "Close (Esc)") { controller.collapse() }
@@ -431,6 +448,37 @@ struct MoveHandle: View {
                     debugLog("NOTCHPAD_MOVE_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
                 }
             })
+    }
+}
+
+/// A boomerang: two tapered arms meeting at a rounded elbow.
+struct BoomerangShape: Shape {
+    func path(in r: CGRect) -> Path {
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: r.minX + x * r.width, y: r.minY + y * r.height) }
+        var p = Path()
+        p.move(to: pt(0.05, 0.42))
+        p.addQuadCurve(to: pt(0.72, 0.06), control: pt(0.38, 0.07))    // top edge of the long arm
+        p.addQuadCurve(to: pt(0.95, 0.30), control: pt(0.96, 0.05))    // round the elbow
+        p.addQuadCurve(to: pt(0.66, 0.95), control: pt(0.94, 0.64))    // outer edge of the short arm
+        p.addQuadCurve(to: pt(0.50, 0.90), control: pt(0.56, 1.02))    // its tip
+        p.addQuadCurve(to: pt(0.66, 0.40), control: pt(0.72, 0.60))    // inner edge, back up to the elbow
+        p.addQuadCurve(to: pt(0.52, 0.32), control: pt(0.62, 0.30))
+        p.addQuadCurve(to: pt(0.13, 0.56), control: pt(0.32, 0.36))    // inner edge of the long arm
+        p.addQuadCurve(to: pt(0.05, 0.42), control: pt(0.00, 0.60))    // its tip
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// The icon for one of the pad's buttons, as shown on the pad and in Settings › Pad buttons.
+struct PadButtonIcon: View {
+    let button: PadButton
+    var body: some View {
+        if button == .dock {
+            BoomerangShape().frame(width: 14, height: 14)
+        } else {
+            Image(systemName: button.symbol).font(.system(size: 11, weight: .semibold))
+        }
     }
 }
 

@@ -62,8 +62,21 @@ jobs:
           # Docked again, in the exact centre, at the very top of the screen.
           grep NOTCHPAD_OPEN move.log | tail -1 | grep -q "floating=false" && echo "OK: back in the notch" || { echo "Not back in the notch"; exit 1; }
           [ "$(grep NOTCHPAD_OPEN move.log | head -1 | sed 's/.*floating=[a-z]* //')" = "$(grep NOTCHPAD_OPEN move.log | tail -1 | sed 's/.*floating=[a-z]* //')" ] && echo "OK: same spot as before the drag" || { echo "Docked in a different spot"; exit 1; }
+      - name: Settings shows the Pad buttons section
+        run: |
+          APP="$PWD/build/NotchPad.app/Contents/MacOS/NotchPad"
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_SETTINGS=padButtons NOTCHPAD_ALLOW_CAPTURE=1 NOTCHPAD_NO_EFFECTS=1 "$APP" 2> settings.log &
+          sleep 7
+          screencapture -x settings-pad-buttons.png || true
+          pgrep -x NotchPad >/dev/null || { cat settings.log; echo "Crashed with Settings open"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
       - name: Make disk image
         run: ./make-dmg.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: intel-screenshots
+          path: '*.png'
       - uses: actions/upload-artifact@v4
         with:
           name: NotchPad

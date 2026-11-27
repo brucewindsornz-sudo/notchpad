@@ -30,6 +30,7 @@ Needs macOS 13 Ventura or later. Built for Apple Silicon and Intel.
 - Control + Option + N opens/closes it from anywhere.
 - Settings › Pad buttons explains every button along the top of the pad and lets you hide
   the ones you don't use (Settings and Close always stay).
+- Moved it somewhere? Click the boomerang button on its top bar and it flies back into the notch.
 - Drag the move button (next to the bin) or the top bar to move it anywhere; drag the
   bottom-right corner to resize. Bring it back near the notch and it's pulled in and
   snaps to the centre, like a magnet. Size and position are remembered
