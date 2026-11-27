@@ -98,6 +98,7 @@ struct ScratchpadView: View {
     @State private var confirmErase = false
     @State private var copied = false
     @State private var clipCleared = false
+    @State private var confirmClearClip = false
 
     @ObservedObject var themes = ThemeStore.shared
     private var theme: PadThemeSpec { themes.current }
@@ -147,16 +148,25 @@ struct ScratchpadView: View {
                 }
                 .disabled(lock.isLocked || store.text.isEmpty)
                 // Clear clipboard: wipes whatever is on the clipboard, from any app. Works while locked too.
+                // Two clicks, like the bin: the first arms it (turns red), the second within 3 seconds clears.
                 Button {
-                    ClipboardGuard.shared.clearNow()
-                    clipCleared = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { clipCleared = false }
+                    if confirmClearClip {
+                        ClipboardGuard.shared.clearNow()
+                        confirmClearClip = false
+                        clipCleared = true
+                        debugLog("NOTCHPAD_CLEARCLIP=cleared")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { clipCleared = false }
+                    } else {
+                        confirmClearClip = true
+                        debugLog("NOTCHPAD_CLEARCLIP=armed")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmClearClip = false }
+                    }
                 } label: {
                     Group {
                         if clipCleared {
                             Image(systemName: "checkmark")
                         } else {
-                            Image(systemName: "doc.on.clipboard")
+                            Image(systemName: confirmClearClip ? "doc.on.clipboard.fill" : "doc.on.clipboard")
                                 .overlay(alignment: .bottomTrailing) {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.system(size: 7, weight: .bold))
@@ -169,9 +179,9 @@ struct ScratchpadView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(theme.secondary)
-                .help("Clear clipboard")
-                .accessibilityLabel("Clear clipboard")
+                .foregroundColor(confirmClearClip ? .red : theme.secondary)
+                .help(confirmClearClip ? "Click again to clear clipboard" : "Clear clipboard")
+                .accessibilityLabel(confirmClearClip ? "Click again to clear clipboard" : "Clear clipboard")
                 .background(GeometryReader { g in
                     Color.clear.onAppear {
                         // Report this button's on-screen centre (top-left origin) for the click test.
