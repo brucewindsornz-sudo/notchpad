@@ -47,6 +47,12 @@ final class NotchPanel: NSPanel {
     }
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// macOS normally pushes windows down so they sit below the menu bar. NotchPad has to
+    /// live up in the menu bar, inside the camera housing, so keep the frame exactly as asked.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
 }
 
 final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
@@ -179,6 +185,10 @@ final class NotchController: ObservableObject {
         let floating = state == .expanded && settings.detached
         showsDetached = floating
         panel.setFrame(panelFrame(floating: floating), display: true)
+        if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG"] != nil {
+            let f = panel.frame
+            FileHandle.standardError.write("NOTCHPAD_FRAME top=\(f.maxY) screenTop=\(notch.screenFrame.maxY) notch=\(notch.rect)\n".data(using: .utf8)!)
+        }
     }
 
     // MARK: Move and resize

@@ -38,11 +38,18 @@ struct NotchRootView: View {
     private var notchSize: CGSize { controller.notch.rect.size }
 
     private var shapeSize: CGSize {
-        let collapsed = CGSize(width: notchSize.width + 12, height: notchSize.height)
+        // Closed: on a notched Mac the shape is a little smaller than the camera housing, so it's
+        // completely hidden behind it (there are no pixels there). On other Macs it shows as a small pill.
+        let hidden = controller.notch.hasNotch
+        let collapsed = hidden
+            ? CGSize(width: max(notchSize.width - 10, 40), height: max(notchSize.height - 4, 10))
+            : CGSize(width: notchSize.width + 12, height: notchSize.height)
+        // Hover: peeks just past the notch edges and a few points below it.
+        let peek = CGSize(width: notchSize.width + 12 + 20, height: notchSize.height + 7)
         switch controller.state {
         case .collapsed: return collapsed
         case .hovering:
-            return settings.hoverNudge ? CGSize(width: collapsed.width + 20, height: collapsed.height + 7) : collapsed
+            return settings.hoverNudge ? peek : collapsed
         case .expanded: return controller.padSize
         }
     }
@@ -55,7 +62,8 @@ struct NotchRootView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            NotchShape(topRadius: expanded ? 12 : 6, bottomRadius: expanded ? 22 : (controller.state == .hovering ? 12 : 9),
+            NotchShape(topRadius: expanded ? 12 : (controller.state == .hovering ? 6 : (controller.notch.hasNotch ? 0 : 6)),
+                       bottomRadius: expanded ? 22 : (controller.state == .hovering ? 12 : 9),
                        floating: expanded && controller.showsDetached)
                 .fill(fill)
                 .frame(width: shapeSize.width, height: shapeSize.height)
