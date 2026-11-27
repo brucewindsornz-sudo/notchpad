@@ -32,6 +32,28 @@ Needs macOS 13 Ventura or later. Built for Apple Silicon and Intel.
   Drop it near the notch to tuck it back in. Size and position are remembered
   after a restart, and if it was pinned open it reopens on launch.
 
+## Themes
+Like Ghostty, NotchPad has a theme gallery (Settings › Theme, or the menu bar icon › Theme):
+
+- 21 built-in themes, including Catppuccin, Dracula, Nord, Tokyo Night, Gruvbox, Solarized,
+  Rosé Pine, One Dark, Monokai, Kanagawa, Everforest and GitHub, plus NotchPad's own.
+- **Match light and dark mode:** pick one theme for Light mode and one for Dark mode.
+- **Bring your own:** NotchPad reads Ghostty's theme file format, so any Ghostty theme works
+  as it is. Use Import theme files… (it opens Ghostty's themes folder if Ghostty is installed),
+  or drop files into the Themes folder and click Reload.
+
+A theme file is plain text:
+
+```
+background = #1f2430
+foreground = #cbccc6
+cursor-color = #ffcc66
+selection-background = #33415e
+```
+
+`background` and `foreground` are required. `cursor-color` sets the cursor and highlights
+(if it's missing, `palette = 4=` is used), and `selection-background` sets the text selection.
+
 ## Privacy
 - App Sandbox with no network entitlement: macOS blocks all internet access.
 - Notes are encrypted (AES-256-GCM) on disk; the key lives in your login Keychain.
