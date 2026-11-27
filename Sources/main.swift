@@ -79,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pin = menu.addItem(withTitle: "Keep Open", action: #selector(togglePin), keyEquivalent: "")
         pin.target = self
         menu.addItem(withTitle: "Put Back in Notch", action: #selector(dockPad), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Reset Position and Size", action: #selector(resetPad), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Clear Clipboard", action: #selector(clearClipboard), keyEquivalent: "").target = self
         let themeItem = menu.addItem(withTitle: "Theme", action: nil, keyEquivalent: "")
         themeItem.submenu = NSMenu(title: "Theme")
@@ -116,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func togglePad() { controller.toggle() }
     @objc private func togglePin() { settings.keepOpen.toggle() }
     @objc private func dockPad() { controller.dock() }
+    @objc private func resetPad() { controller.resetPosition() }
     @objc private func clearClipboard() { ClipboardGuard.shared.clearNow() }
     @objc private func pickTheme(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }

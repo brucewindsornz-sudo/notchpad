@@ -35,6 +35,18 @@ Needs macOS 13 Ventura or later. Built for Apple Silicon and Intel.
   snaps to the centre, like a magnet. Size and position are remembered
   after a restart, and if it was pinned open it reopens on launch.
 
+## If the pad ever gets stuck
+
+A moved pad always stays below the menu bar and on screen, so its buttons can be reached. If it
+still ends up somewhere awkward, any of these gets you out:
+
+- Esc closes it, and Control + Option + N opens/closes it from any app.
+- Right-click the pad's top bar: Close, Put Back in Notch, Reset Position and Size, Quit.
+- Menu bar icon › Reset Position and Size.
+- Command + Q quits NotchPad while the pad is in use.
+- Hold Option while NotchPad starts: it goes back into the notch at its normal size, closed.
+- From Terminal: `pkill -x NotchPad` quits it.
+
 ## Themes
 Like Ghostty, NotchPad has a theme gallery (Settings › Theme, or the menu bar icon › Theme):
 
