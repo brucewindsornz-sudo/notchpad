@@ -85,6 +85,26 @@ below_menu_bar stuck3.log
 click_close stuck3.log 0 0
 echo "OK: it restarts below the menu bar and Close works"
 
+echo "== 4. The boomerang button flies a moved pad back into the notch"
+launch stuck4.log NOTCHPAD_DEBUG_OPEN=1
+below_menu_bar stuck4.log
+read X Y < <(grep NOTCHPAD_BOOMERANG_AT stuck4.log | tail -1 | sed 's/.*x=\([0-9-]*\) y=\([0-9-]*\)/\1 \2/')
+[ -n "${X:-}" ] && [ -n "${Y:-}" ] || fail "no boomerang button on a moved pad (stuck4.log)"
+screencapture -x boomerang-1-before.png 2>/dev/null
+echo "Clicking the boomerang at $X,$Y"
+cliclick m:$X,$Y w:400 c:$X,$Y
+sleep 0.25; screencapture -x boomerang-2-flying.png 2>/dev/null
+sleep 3
+screencapture -x boomerang-3-home.png 2>/dev/null
+grep -q "NOTCHPAD_BOOMERANG distance" stuck4.log || fail "the boomerang button did nothing"
+line=$(grep NOTCHPAD_OPEN stuck4.log | tail -1); echo "$line"
+echo "$line" | grep -q "floating=false" || fail "the pad did not come back to the notch"
+[ "$(field "$line" left)" = "$LEFT0" ] || fail "the pad came back off-centre (left edge $(field "$line" left), expected $LEFT0)"
+click_close stuck4.log $((LEFT0-LEFT1)) -2
+launch stuck5.log NOTCHPAD_DEBUG_OPEN=1
+grep NOTCHPAD_OPEN stuck5.log | tail -1 | grep -q "floating=false" || fail "it did not stay in the notch after a restart"
+echo "OK: the boomerang brings it home, and it stays there"
+
 pkill -x NotchPad; sleep 1
 defaults delete "$P" 2>/dev/null
 killall cfprefsd 2>/dev/null

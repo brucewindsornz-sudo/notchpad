@@ -544,7 +544,10 @@ final class NotchController: ObservableObject {
     /// Put the pad back in the notch (keeps its size).
     func dock() { dock(animated: true) }
 
-    func dock(animated: Bool) {
+    /// The boomerang button: the pad swings out in a curve and flies back into the notch.
+    func boomerang() { dock(animated: true, boomerang: true) }
+
+    func dock(animated: Bool, boomerang: Bool = false) {
         if moveStartMouse != nil { cancelMove() }    // "Put back in notch" must always win
         let wasDetached = showsDetached
         let saveDocked = { [weak self] in
@@ -569,6 +572,19 @@ final class NotchController: ObservableObject {
         springVel = .zero
         springTarget = home.origin
         springOmega = 22; springZeta = 0.68
+        if boomerang {
+            // Throw it sideways as it's pulled home: the path bends into an arc, like a boomerang coming back.
+            // The swing is always downward first, away from the top of the screen.
+            let dx = home.origin.x - start.origin.x, dy = home.origin.y - start.origin.y
+            let dist = (dx * dx + dy * dy).squareRoot()
+            if dist > 40 {
+                springOmega = 13
+                let side: CGFloat = dx >= 0 ? 1 : -1
+                let swing = min(0.75 * springOmega * dist, 7000)
+                springVel = CGVector(dx: side * dy / dist * swing, dy: -side * dx / dist * swing)
+                debugLog("NOTCHPAD_BOOMERANG distance=\(Int(dist))")
+            }
+        }
         saveDocked()            // layout() waits for the spring, so saving now can't jerk it mid-pull
         springDone = { [weak self] in self?.panel.setFrame(home, display: true) }
         startSpring()

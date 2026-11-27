@@ -85,7 +85,7 @@ enum PadButton: String, CaseIterable, Identifiable {
         case .move: return "arrow.up.and.down.and.arrow.left.and.right"
         case .lock: return "lock"
         case .pin: return "pin"
-        case .dock: return "arrow.up.to.line"
+        case .dock: return "arrow.uturn.backward"   // drawn as a boomerang instead (see PadButtonIcon)
         case .settings: return "gearshape"
         case .close: return "chevron.up"
         }
@@ -98,7 +98,7 @@ enum PadButton: String, CaseIterable, Identifiable {
         case .move: return "Move"
         case .lock: return "Lock now"
         case .pin: return "Keep open"
-        case .dock: return "Put back in the notch"
+        case .dock: return "Boomerang"
         case .settings: return "Settings"
         case .close: return "Close"
         }
@@ -111,7 +111,7 @@ enum PadButton: String, CaseIterable, Identifiable {
         case .move: return "Drag to move the pad anywhere. Bring it back to the notch and it snaps into the centre."
         case .lock: return "Hides the note until Touch ID or your password. Only shown when Lock with Touch ID is on."
         case .pin: return "Keeps the pad open until you close it."
-        case .dock: return "Sends a moved pad back into the notch. Only shown while it's been moved."
+        case .dock: return "Flies a moved pad back into the notch, like a boomerang. Only shown while it's been moved."
         case .settings: return "Opens these settings. Always shown, so you can't lock yourself out."
         case .close: return "Tucks the pad back into the notch. Esc does the same. Always shown."
         }
