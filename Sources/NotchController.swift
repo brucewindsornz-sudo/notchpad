@@ -121,6 +121,8 @@ final class NotchController: ObservableObject {
     /// When the last drag event arrived. If the button is up and nothing has arrived for a moment,
     /// the mouse-up went somewhere else (screen lock, Mission Control...) and the move is ended for you.
     private var lastDragEvent = CACurrentMediaTime()
+    /// Set when a screen change dropped a drag mid-hold: the rest of that hold is ignored.
+    private var ignoreDragUntilUp = false
     private var layoutPending = false
 
     private var resizeStartMouse: NSPoint?
@@ -173,6 +175,7 @@ final class NotchController: ObservableObject {
     /// A display was added, removed or rescaled: drop any drag or pull in flight (its numbers belong
     /// to the old screen) and lay the pad out again for the new one.
     private func screenChanged() {
+        if moveStartMouse != nil { ignoreDragUntilUp = NSEvent.pressedMouseButtons & 1 != 0 }
         moveStartMouse = nil
         if let mon = moveMonitor { NSEvent.removeMonitor(mon); moveMonitor = nil }
         magnetLocked = false
@@ -278,6 +281,9 @@ final class NotchController: ObservableObject {
     /// (window coordinates, y down), so the pad doesn't lag behind by that much.
     func moveDrag(translation: CGSize = .zero) {
         guard state == .expanded else { return }
+        if ignoreDragUntilUp {
+            if NSEvent.pressedMouseButtons & 1 == 0 { ignoreDragUntilUp = false } else { return }
+        }
         lastDragEvent = CACurrentMediaTime()
         // A move whose mouse-up never reached us (screen lock, Mission Control, app switch...) must not
         // block every later drag: drop it and start fresh.
@@ -401,6 +407,7 @@ final class NotchController: ObservableObject {
     /// `trackPointer` is false when the move is ended for you (its mouse-up never arrived): the pointer
     /// may be anywhere by then, so the pad settles where it last was instead of chasing it.
     func endMove(trackPointer: Bool = true) {
+        ignoreDragUntilUp = false
         guard moveStartMouse != nil else { return }
         if trackPointer { dragMoved() }   // decide from where the pointer finally is, not where the spring has got to
         moveStartMouse = nil
