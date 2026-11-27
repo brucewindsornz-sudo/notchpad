@@ -72,6 +72,53 @@ enum AutoErase: Int, CaseIterable, Identifiable {
     }
 }
 
+/// The buttons along the top of the pad, in the order they appear. Settings and Close can't be hidden
+/// (Settings is the way back in if the menu bar icon is off).
+enum PadButton: String, CaseIterable, Identifiable {
+    case copy, clearClipboard, erase, move, lock, pin, dock, settings, close
+    var id: String { rawValue }
+    var symbol: String {
+        switch self {
+        case .copy: return "doc.on.doc"
+        case .clearClipboard: return "doc.on.clipboard"
+        case .erase: return "trash"
+        case .move: return "arrow.up.and.down.and.arrow.left.and.right"
+        case .lock: return "lock"
+        case .pin: return "pin"
+        case .dock: return "arrow.up.to.line"
+        case .settings: return "gearshape"
+        case .close: return "chevron.up"
+        }
+    }
+    var title: String {
+        switch self {
+        case .copy: return "Copy"
+        case .clearClipboard: return "Clear clipboard"
+        case .erase: return "Erase note"
+        case .move: return "Move"
+        case .lock: return "Lock now"
+        case .pin: return "Keep open"
+        case .dock: return "Put back in the notch"
+        case .settings: return "Settings"
+        case .close: return "Close"
+        }
+    }
+    var detail: String {
+        switch self {
+        case .copy: return "Copies the whole note. The clipboard clears itself afterwards, as set under Clipboard."
+        case .clearClipboard: return "Click twice to wipe the clipboard, whatever app it came from."
+        case .erase: return "Click twice to erase the note. It can't be undone."
+        case .move: return "Drag to move the pad anywhere. Bring it back to the notch and it snaps into the centre."
+        case .lock: return "Hides the note until Touch ID or your password. Only shown when Lock with Touch ID is on."
+        case .pin: return "Keeps the pad open until you close it."
+        case .dock: return "Sends a moved pad back into the notch. Only shown while it's been moved."
+        case .settings: return "Opens these settings. Always shown, so you can't lock yourself out."
+        case .close: return "Tucks the pad back into the notch. Esc does the same. Always shown."
+        }
+    }
+    var canHide: Bool { self != .settings && self != .close }
+}
+
 /// All user options, saved in UserDefaults (on this Mac only).
 final class Settings: ObservableObject {
     static let shared = Settings()
@@ -118,6 +165,14 @@ final class Settings: ObservableObject {
     @Published var autoErase: AutoErase { didSet { d.set(autoErase.rawValue, forKey: "autoErase") } }
     @Published var spellCheck: Bool { didSet { d.set(spellCheck, forKey: "spellCheck") } }
 
+    // Pad buttons
+    @Published var hiddenButtons: Set<String> { didSet { d.set(Array(hiddenButtons).sorted(), forKey: "hiddenButtons") } }
+    func shows(_ b: PadButton) -> Bool { !b.canHide || !hiddenButtons.contains(b.rawValue) }
+    func setShows(_ b: PadButton, _ on: Bool) {
+        guard b.canHide else { return }
+        if on { hiddenButtons.remove(b.rawValue) } else { hiddenButtons.insert(b.rawValue) }
+    }
+
     // Clipboard
     @Published var clipboardClear: ClipboardClear { didSet { d.set(clipboardClear.rawValue, forKey: "clipboardClear") } }
     @Published var clipboardClearOnLock: Bool { didSet { d.set(clipboardClearOnLock, forKey: "clipboardClearOnLock") } }
@@ -137,6 +192,7 @@ final class Settings: ObservableObject {
             "blurWhenAway": false, "autoErase": AutoErase.never.rawValue, "spellCheck": false,
             "clipboardClear": ClipboardClear.oneMinute.rawValue, "clipboardClearOnLock": true,
             "clipboardThisMacOnly": true, "clipboardHideFromHistory": true,
+            "hiddenButtons": [String](),
         ])
         keepOpen = d.bool(forKey: "keepOpen")
         openOnHover = d.bool(forKey: "openOnHover")
@@ -171,13 +227,14 @@ final class Settings: ObservableObject {
         clipboardClearOnLock = d.bool(forKey: "clipboardClearOnLock")
         clipboardThisMacOnly = d.bool(forKey: "clipboardThisMacOnly")
         clipboardHideFromHistory = d.bool(forKey: "clipboardHideFromHistory")
+        hiddenButtons = Set(d.stringArray(forKey: "hiddenButtons") ?? [])
     }
 
     func resetToDefaults() {
         for key in ["keepOpen", "openOnHover", "hoverNudge", "haptics", "closeOnClickOutside", "hotkeyEnabled",
                     "showMenuBarIcon", "size", "font", "fontSize", "theme", "themeFollowsSystem", "lightTheme", "darkTheme", "opacity", "showWordCount",
                     "hideFromCapture", "lockEnabled", "lockAfter", "blurWhenAway", "autoErase", "spellCheck",
-                    "clipboardClear", "clipboardClearOnLock", "clipboardThisMacOnly", "clipboardHideFromHistory",
+                    "clipboardClear", "clipboardClearOnLock", "clipboardThisMacOnly", "clipboardHideFromHistory", "hiddenButtons",
                     "rememberLayout", "customWidth", "customHeight", "detached", "offsetX", "offsetY"] {
             d.removeObject(forKey: key)
         }
@@ -192,6 +249,7 @@ final class Settings: ObservableObject {
         autoErase = fresh.autoErase; spellCheck = fresh.spellCheck
         clipboardClear = fresh.clipboardClear; clipboardClearOnLock = fresh.clipboardClearOnLock
         clipboardThisMacOnly = fresh.clipboardThisMacOnly; clipboardHideFromHistory = fresh.clipboardHideFromHistory
+        hiddenButtons = fresh.hiddenButtons
         rememberLayout = fresh.rememberLayout
         resetLayout()
     }

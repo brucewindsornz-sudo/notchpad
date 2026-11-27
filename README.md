@@ -28,6 +28,8 @@ Needs macOS 13 Ventura or later. Built for Apple Silicon and Intel.
 - Click: it expands into a scratchpad. Esc or the arrow closes it.
 - Pin it (or turn on "Keep the scratchpad open") to leave it open.
 - Control + Option + N opens/closes it from anywhere.
+- Settings › Pad buttons explains every button along the top of the pad and lets you hide
+  the ones you don't use (Settings and Close always stay).
 - Drag the move button (next to the bin) or the top bar to move it anywhere; drag the
   bottom-right corner to resize. Bring it back near the notch and it's pulled in and
   snaps to the centre, like a magnet. Size and position are remembered

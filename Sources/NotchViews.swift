@@ -141,67 +141,75 @@ struct ScratchpadView: View {
     private var toolbar: some View {
         HStack(spacing: 4) {
             HStack(spacing: 2) {
-                iconButton(copied ? "checkmark" : "doc.on.doc", help: copyHelp) {
-                    ClipboardGuard.shared.copy(store.text)
-                    copied = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
-                }
-                .disabled(lock.isLocked || store.text.isEmpty)
-                // Clear clipboard: wipes whatever is on the clipboard, from any app. Works while locked too.
-                // Two clicks, like the bin: the first arms it (turns red), the second within 3 seconds clears.
-                Button {
-                    if confirmClearClip {
-                        ClipboardGuard.shared.clearNow()
-                        confirmClearClip = false
-                        clipCleared = true
-                        debugLog("NOTCHPAD_CLEARCLIP=cleared")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { clipCleared = false }
-                    } else {
-                        confirmClearClip = true
-                        debugLog("NOTCHPAD_CLEARCLIP=armed")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmClearClip = false }
+                if settings.shows(.copy) {
+                    iconButton(copied ? "checkmark" : "doc.on.doc", help: copyHelp) {
+                        ClipboardGuard.shared.copy(store.text)
+                        copied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
                     }
-                } label: {
-                    Group {
-                        if clipCleared {
-                            Image(systemName: "checkmark")
+                    .disabled(lock.isLocked || store.text.isEmpty)
+                }
+                if settings.shows(.clearClipboard) {
+                    // Clear clipboard: wipes whatever is on the clipboard, from any app. Works while locked too.
+                    // Two clicks, like the bin: the first arms it (turns red), the second within 3 seconds clears.
+                    Button {
+                        if confirmClearClip {
+                            ClipboardGuard.shared.clearNow()
+                            confirmClearClip = false
+                            clipCleared = true
+                            debugLog("NOTCHPAD_CLEARCLIP=cleared")
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { clipCleared = false }
                         } else {
-                            Image(systemName: confirmClearClip ? "doc.on.clipboard.fill" : "doc.on.clipboard")
-                                .overlay(alignment: .bottomTrailing) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 7, weight: .bold))
-                                        .offset(x: 3, y: 2)
-                                }
+                            confirmClearClip = true
+                            debugLog("NOTCHPAD_CLEARCLIP=armed")
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmClearClip = false }
+                        }
+                    } label: {
+                        Group {
+                            if clipCleared {
+                                Image(systemName: "checkmark")
+                            } else {
+                                Image(systemName: confirmClearClip ? "doc.on.clipboard.fill" : "doc.on.clipboard")
+                                    .overlay(alignment: .bottomTrailing) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 7, weight: .bold))
+                                            .offset(x: 3, y: 2)
+                                    }
+                            }
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 22, height: 20)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(confirmClearClip ? .red : theme.secondary)
+                    .help(confirmClearClip ? "Click again to clear clipboard" : "Clear clipboard")
+                    .accessibilityLabel(confirmClearClip ? "Click again to clear clipboard" : "Clear clipboard")
+                    .background(GeometryReader { g in
+                        Color.clear.onAppear {
+                            // Report this button's on-screen centre (top-left origin) for the click test.
+                            let f = g.frame(in: .global), w = controller.panel.frame
+                            let screenTop = controller.notch.screenFrame.maxY
+                            debugLog("NOTCHPAD_CLEARCLIP_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
+                        }
+                    })
+                }
+                if settings.shows(.erase) {
+                    iconButton(confirmErase ? "trash.fill" : "trash", help: confirmErase ? "Click again to erase" : "Erase note",
+                               tint: confirmErase ? .red : nil) {
+                        if confirmErase {
+                            store.eraseAll(); confirmErase = false
+                        } else {
+                            confirmErase = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmErase = false }
                         }
                     }
-                    .font(.system(size: 11, weight: .semibold))
-                    .frame(width: 22, height: 20)
-                    .contentShape(Rectangle())
+                    .disabled(lock.isLocked || store.text.isEmpty)
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(confirmClearClip ? .red : theme.secondary)
-                .help(confirmClearClip ? "Click again to clear clipboard" : "Clear clipboard")
-                .accessibilityLabel(confirmClearClip ? "Click again to clear clipboard" : "Clear clipboard")
-                .background(GeometryReader { g in
-                    Color.clear.onAppear {
-                        // Report this button's on-screen centre (top-left origin) for the click test.
-                        let f = g.frame(in: .global), w = controller.panel.frame
-                        let screenTop = controller.notch.screenFrame.maxY
-                        debugLog("NOTCHPAD_CLEARCLIP_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
-                    }
-                })
-                iconButton(confirmErase ? "trash.fill" : "trash", help: confirmErase ? "Click again to erase" : "Erase note",
-                           tint: confirmErase ? .red : nil) {
-                    if confirmErase {
-                        store.eraseAll(); confirmErase = false
-                    } else {
-                        confirmErase = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmErase = false }
-                    }
+                if settings.shows(.move) {
+                    MoveHandle(controller: controller, color: theme.secondary)
                 }
-                .disabled(lock.isLocked || store.text.isEmpty)
-                MoveHandle(controller: controller, color: theme.secondary)
-                if settings.lockEnabled && !lock.isLocked {
+                if settings.lockEnabled && !lock.isLocked && settings.shows(.lock) {
                     iconButton("lock", help: "Lock now") {
                         if settings.clipboardClearOnLock { ClipboardGuard.shared.clearIfOurs() }
                         lock.lock()
@@ -212,20 +220,22 @@ struct ScratchpadView: View {
             Spacer(minLength: 8)
 
             HStack(spacing: 2) {
-                iconButton(settings.keepOpen ? "pin.fill" : "pin",
-                           help: settings.keepOpen ? "Stays open (click to stop)" : "Keep open",
-                           tint: settings.keepOpen ? theme.accentColor : nil) {
-                    settings.keepOpen.toggle()
-                }
-                .background(GeometryReader { g in
-                    Color.clear.onAppear {
-                        // Report the pin button's on-screen centre (top-left origin) for the click test.
-                        let f = g.frame(in: .global), w = controller.panel.frame
-                        let screenTop = controller.notch.screenFrame.maxY
-                        debugLog("NOTCHPAD_PIN_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
+                if settings.shows(.pin) {
+                    iconButton(settings.keepOpen ? "pin.fill" : "pin",
+                               help: settings.keepOpen ? "Stays open (click to stop)" : "Keep open",
+                               tint: settings.keepOpen ? theme.accentColor : nil) {
+                        settings.keepOpen.toggle()
                     }
-                })
-                if controller.showsDetached {
+                    .background(GeometryReader { g in
+                        Color.clear.onAppear {
+                            // Report the pin button's on-screen centre (top-left origin) for the click test.
+                            let f = g.frame(in: .global), w = controller.panel.frame
+                            let screenTop = controller.notch.screenFrame.maxY
+                            debugLog("NOTCHPAD_PIN_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
+                        }
+                    })
+                }
+                if controller.showsDetached && settings.shows(.dock) {
                     iconButton("arrow.up.to.line", help: "Put back in the notch") { controller.dock() }
                 }
                 iconButton("gearshape", help: "Settings") { controller.openSettings() }
