@@ -17,7 +17,15 @@ A private scratchpad that lives in your MacBook's camera notch.
 - Optional Touch ID lock, blur-when-away and auto-erase.
 
 ## Install
-Open Terminal and paste:
+With Homebrew:
+
+    brew tap brucewindsornz-sudo/notchpad https://github.com/brucewindsornz-sudo/notchpad
+    brew install --cask notchpad
+
+Update with `brew update && brew upgrade --cask notchpad`. Remove with
+`brew uninstall --cask notchpad` (add `--zap` to also delete notes and settings).
+
+Without Homebrew, open Terminal and paste:
 
     curl -fsSL https://raw.githubusercontent.com/brucewindsornz-sudo/notchpad/master/install.sh | bash
 
