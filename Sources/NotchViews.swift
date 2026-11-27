@@ -114,6 +114,10 @@ struct ScratchpadView: View {
             toolbar
             if lock.isLocked {
                 lockedView
+            } else if terminalOn {
+                TerminalView(controller: controller)
+                    .modifier(PadBlur(on: shouldBlur && !testNoEffects))
+                    .animation(.easeInOut(duration: 0.2), value: shouldBlur)
             } else {
                 PadTextView(text: $store.text,
                             font: settings.font.nsFont(size: CGFloat(settings.fontSize)),
@@ -136,6 +140,9 @@ struct ScratchpadView: View {
     }
 
     private var shouldBlur: Bool { settings.blurWhenAway && !controller.mouseInside }
+
+    /// The pad is showing the command line instead of the note. Hiding its button switches it back to the note.
+    private var terminalOn: Bool { settings.terminalEnabled && settings.terminalMode && settings.shows(.terminal) }
 
     /// Buttons row, just below the menu bar. The empty middle is the drag handle.
     private var toolbar: some View {
@@ -220,6 +227,22 @@ struct ScratchpadView: View {
             Spacer(minLength: 8)
 
             HStack(spacing: 2) {
+                if settings.terminalEnabled && settings.shows(.terminal) {
+                    // Terminal mode: lights up in the accent colour while the pad is a command line.
+                    iconButton(terminalOn ? "terminal.fill" : "terminal",
+                               help: terminalOn ? "Terminal mode is on (click for your note)" : "Terminal mode",
+                               tint: terminalOn ? theme.accentColor : nil) {
+                        settings.terminalMode.toggle()
+                    }
+                    .background(GeometryReader { g in
+                        Color.clear.onAppear {
+                            // Report this button's on-screen centre (top-left origin) for the click test.
+                            let f = g.frame(in: .global), w = controller.panel.frame
+                            let screenTop = controller.notch.screenFrame.maxY
+                            debugLog("NOTCHPAD_TERM_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
+                        }
+                    })
+                }
                 if settings.shows(.pin) {
                     iconButton(settings.keepOpen ? "pin.fill" : "pin",
                                help: settings.keepOpen ? "Stays open (click to stop)" : "Keep open",

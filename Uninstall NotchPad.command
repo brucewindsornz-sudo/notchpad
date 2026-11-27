@@ -4,6 +4,9 @@ clear
 echo "== Uninstall NotchPad =="
 pkill -x NotchPad 2>/dev/null || true
 rm -rf /Applications/NotchPad.app && echo "Removed NotchPad from Applications."
+if [[ -e ~/Library/Application\ Scripts/com.newzeebuild.notchpad ]]; then
+  rm -rf ~/Library/Application\ Scripts/com.newzeebuild.notchpad && echo "Removed the terminal add-on."
+fi
 read -r -p "Also delete your notes and settings? This can't be undone. (y/N) " ans
 if [[ "$ans" =~ ^[Yy]$ ]]; then
   rm -rf ~/Library/Containers/com.newzeebuild.notchpad

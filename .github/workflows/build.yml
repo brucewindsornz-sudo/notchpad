@@ -14,6 +14,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build universal app
         run: ./build.sh --universal
+      - name: Terminal runner test
+        run: tests/terminal-runner.sh
+      - name: Terminal mode end-to-end test
+        run: |
+          TERMINAL_APP_CI=1 NOTCHPAD_NO_EFFECTS=1 tests/terminal-app.sh "$PWD/build/NotchPad.app" || {
+            f=$(ls -t ~/Library/Logs/DiagnosticReports/NotchPad* 2>/dev/null | head -1) || true
+            [ -n "$f" ] && python3 -c "import json,sys; t=open(sys.argv[1]).read().split('\n',1)[1]; d=json.loads(t); imgs=d['usedImages']; th=[x for x in d['threads'] if x.get('triggered')][0]; [print(i, imgs[fr['imageIndex']].get('name','?'), fr.get('symbol','?')) for i,fr in enumerate(th['frames'][:60])]" "$f" || echo "no crash report"
+            exit 1
+          }
       - name: Clipboard test
         run: |
           swiftc -o build/cliptest Sources/Clipboard.swift Sources/Settings.swift tests/clipboard/main.swift
@@ -107,6 +116,8 @@ jobs:
           sleep 6
           pgrep -x NotchPad && echo "OK: running natively on Apple Silicon"
           pkill -x NotchPad || true; sleep 1
+      - name: Terminal mode end-to-end test
+        run: TERMINAL_APP_CI=1 tests/terminal-app.sh /Applications/NotchPad.app
       - run: brew install cliclick
       - name: Open the pad, check its graphics, click the pin button
         run: |
@@ -169,6 +180,64 @@ jobs:
           grep NOTCHPAD_DROP move.log | tail -1 | grep -q "docked=true" && echo "OK: magnet docks it near the notch" || { echo "Magnet did not dock"; exit 1; }
       - name: The pad can't get stuck under the menu bar
         run: STUCK_PAD_CI=1 tests/stuck-pad.sh /Applications/NotchPad.app/Contents/MacOS/NotchPad
+      - name: Switch to terminal mode, run a command and capture Settings
+        run: |
+          APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad
+          INSTALL=/Applications/NotchPad.app/Contents/Resources/TerminalAddOn/install.sh
+          C=~/Library/Containers/com.newzeebuild.notchpad/Data
+          P="$C/Library/Preferences/com.newzeebuild.notchpad"
+          mkdir -p "$C/Library/Preferences"
+          defaults write "$P" terminalEnabled -bool true
+          sleep 1; killall cfprefsd 2>/dev/null || true; sleep 1   # give the setting a moment to be saved first
+          "$INSTALL"
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> term-ui.log &
+          for _ in $(seq 1 60); do
+            grep -q "NOTCHPAD_TERM_AT" term-ui.log && break
+            sleep 0.25
+          done
+          pgrep -x NotchPad >/dev/null || { cat term-ui.log; echo "Crashed when opening the pad"; exit 1; }
+          read X Y < <(grep NOTCHPAD_TERM_AT term-ui.log | tail -1 | sed 's/.*x=\([0-9-]*\) y=\([0-9-]*\)/\1 \2/') || true
+          [ -n "${X:-}" ] && [ -n "${Y:-}" ] || { cat term-ui.log; echo "No NOTCHPAD_TERM_AT in log"; exit 1; }
+          echo "Clicking terminal button at $X,$Y"
+          cliclick m:$X,$Y w:300 c:$X,$Y
+          for _ in $(seq 1 40); do
+            grep -q "NOTCHPAD_TERM_MODE=true" term-ui.log && grep -q "NOTCHPAD_TERMFIELD_AT" term-ui.log && break
+            sleep 0.25
+          done
+          grep -q "NOTCHPAD_TERM_MODE=true" term-ui.log && echo "OK: switched to terminal mode" || { cat term-ui.log; echo "Terminal mode did not turn on"; exit 1; }
+          screencapture -x pad-terminal-empty.png || true
+          read FX FY < <(grep NOTCHPAD_TERMFIELD_AT term-ui.log | tail -1 | sed 's/.*x=\([0-9-]*\) y=\([0-9-]*\)/\1 \2/') || true
+          [ -n "${FX:-}" ] && [ -n "${FY:-}" ] || { cat term-ui.log; echo "No NOTCHPAD_TERMFIELD_AT in log"; exit 1; }
+          echo "Clicking terminal field at $FX,$FY"
+          cliclick m:$FX,$FY w:300 c:$FX,$FY w:200 "t:echo notchpad terminal works" w:200 kp:return
+          for _ in $(seq 1 40); do
+            grep -q "NOTCHPAD_TERM_DONE status=0" term-ui.log && break
+            sleep 0.25
+          done
+          screencapture -x pad-terminal-output.png || true
+          grep -q "NOTCHPAD_TERM_LINE notchpad terminal works" term-ui.log && echo "OK: command output logged" || { cat term-ui.log; echo "Missing command output"; exit 1; }
+          grep -q "NOTCHPAD_TERM_DONE status=0" term-ui.log && echo "OK: command exited 0" || { cat term-ui.log; echo "Command did not finish with status=0"; exit 1; }
+          cliclick m:$X,$Y w:300 c:$X,$Y
+          for _ in $(seq 1 40); do
+            grep -q "NOTCHPAD_TERM_MODE=false" term-ui.log && break
+            sleep 0.25
+          done
+          pgrep -x NotchPad >/dev/null || { cat term-ui.log; echo "Crashed in terminal mode"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
+          cat term-ui.log
+          grep -q "NOTCHPAD_TERM_MODE=false" term-ui.log && echo "OK: switched back to note mode" || { cat term-ui.log; echo "Terminal mode did not turn off"; exit 1; }
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_SETTINGS=terminalMode NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> settings-terminal.log &
+          for _ in $(seq 1 60); do
+            grep -q "NOTCHPAD_FRAME" settings-terminal.log && break
+            sleep 0.25
+          done
+          sleep 3
+          screencapture -x settings-terminal.png || true
+          pgrep -x NotchPad >/dev/null || { cat settings-terminal.log; echo "Crashed with Terminal settings open"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
+          "$INSTALL" --remove || true
+          defaults delete "$P" 2>/dev/null || true
+          killall cfprefsd 2>/dev/null || true
       - name: Load a Ghostty theme and show it in the pad and Settings
         run: |
           APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad

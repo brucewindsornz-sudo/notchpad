@@ -226,6 +226,10 @@ struct SettingsView: View {
                 }
             }
 
+            // Grouped so the form stays within what older Swift compilers accept in one block.
+            Group {
+            TerminalSettingsSection()
+
             Section("General") {
                 Toggle(isOn: Binding(get: { launchAtLogin }, set: { on in
                     do {
@@ -250,10 +254,10 @@ struct SettingsView: View {
             }
 
             Section {
-                Label("NotchPad has no internet access. Notes are encrypted on this Mac with a key kept in your Keychain, and there's no tracking of any kind.",
-                      systemImage: "lock.shield")
+                Label(privacySummary, systemImage: "lock.shield")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+            }
             }
         }
         .formStyle(.grouped)
@@ -266,6 +270,13 @@ struct SettingsView: View {
             }
         }
         }
+    }
+
+    /// The one-paragraph promise at the bottom. Says so plainly when terminal mode is switched on.
+    private var privacySummary: String {
+        let promise = "NotchPad has no internet access. Notes are encrypted on this Mac with a key kept in your Keychain, and there's no tracking of any kind."
+        guard s.terminalEnabled else { return promise }
+        return promise + " Terminal mode is on: commands you run there run outside NotchPad, as they would in Terminal, and can use the internet and your files."
     }
 
     private var filteredThemes: [PadThemeSpec] {
