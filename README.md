@@ -17,19 +17,18 @@ A private scratchpad that lives in your MacBook's camera notch.
 - Optional Touch ID lock, blur-when-away and auto-erase.
 
 ## Install
-Needs macOS 13 Ventura or later. NotchPad is built on your own Mac (it takes about a minute).
+Open Terminal and paste:
 
-**Easiest:** double-click `Install NotchPad.command`. It installs Apple's free Command Line
-Tools if needed, builds NotchPad, puts it in Applications and starts it.
+    curl -fsSL https://raw.githubusercontent.com/brucewindsornz-sudo/notchpad/master/install.sh | bash
 
-**Drag-to-Applications installer:** double-click `Make NotchPad.dmg.command`. It creates
-`NotchPad.dmg` in this folder and opens it; drag NotchPad onto Applications. You can keep the
-.dmg to reinstall later.
+It downloads the latest NotchPad, puts it in Applications and opens it. Downloading through
+Terminal avoids macOS's "Move to Trash" warning for apps that aren't Apple-notarised.
 
-**Remove:** double-click `Uninstall NotchPad.command` (asks before deleting your notes).
+**Already downloaded the .dmg or zip and got "Move to Trash"?** Click Done (not Move to Trash), then:
 
-If macOS says a .command file "can't be opened", right-click it and choose Open
-(on macOS 15: System Settings › Privacy & Security › Open Anyway). Or run it in Terminal:
-    bash "Install NotchPad.command"
+    xattr -dr com.apple.quarantine /Applications/NotchPad.app      # after dragging from the .dmg
+    xattr -dr com.apple.quarantine ~/Downloads/notchpad            # for the zip folder, then double-click again
 
-Terminal equivalents: `./build.sh --install`, `./make-dmg.sh`.
+Other options in this folder: `Install NotchPad.command` (build on this Mac),
+`Make NotchPad.dmg.command` (make a drag-to-Applications disk image),
+`Uninstall NotchPad.command`. Needs macOS 13 Ventura or later.
