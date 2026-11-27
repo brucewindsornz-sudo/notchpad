@@ -57,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         NoteStore.shared.saveNow()
+        if settings.clipboardClearOnLock { ClipboardGuard.shared.clearIfOurs() }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -78,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pin = menu.addItem(withTitle: "Keep Open", action: #selector(togglePin), keyEquivalent: "")
         pin.target = self
         menu.addItem(withTitle: "Put Back in Notch", action: #selector(dockPad), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Clear Clipboard", action: #selector(clearClipboard), keyEquivalent: "").target = self
         let themeItem = menu.addItem(withTitle: "Theme", action: nil, keyEquivalent: "")
         themeItem.submenu = NSMenu(title: "Theme")
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
@@ -114,6 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func togglePad() { controller.toggle() }
     @objc private func togglePin() { settings.keepOpen.toggle() }
     @objc private func dockPad() { controller.dock() }
+    @objc private func clearClipboard() { ClipboardGuard.shared.clearNow() }
     @objc private func pickTheme(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
         ThemeStore.shared.choose(ThemeStore.shared.theme(id: id))

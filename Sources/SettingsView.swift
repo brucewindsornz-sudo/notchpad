@@ -22,6 +22,7 @@ struct SettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var confirmErase = false
     @State private var confirmReset = false
+    @State private var clipboardCleared = false
 
     var body: some View {
         Form {
@@ -172,6 +173,36 @@ struct SettingsView: View {
                     .confirmationDialog("Erase everything in the scratchpad?", isPresented: $confirmErase) {
                         Button("Erase", role: .destructive) { NoteStore.shared.eraseAll() }
                     } message: { Text("This can't be undone.") }
+            }
+
+            Section("Clipboard") {
+                Picker(selection: $s.clipboardClear) {
+                    ForEach(ClipboardClear.allCases) { Text($0.label).tag($0) }
+                } label: {
+                    OptionLabel(title: "Clear the clipboard after copying",
+                                detail: "After you use the copy button, the clipboard is wiped once this time is up. Anything you've copied from another app since is left alone.")
+                }
+                Toggle(isOn: $s.clipboardClearOnLock) {
+                    OptionLabel(title: "Also clear it when my Mac locks or sleeps",
+                                detail: "Also when you lock the pad or quit NotchPad. Only if the clipboard still holds text copied from NotchPad.")
+                }
+                Toggle(isOn: $s.clipboardThisMacOnly) {
+                    OptionLabel(title: "Keep copies on this Mac",
+                                detail: "Stops Universal Clipboard passing them to your iPhone, iPad or other Macs.")
+                }
+                Toggle(isOn: $s.clipboardHideFromHistory) {
+                    OptionLabel(title: "Keep copies out of clipboard history apps",
+                                detail: "Asks apps like Maccy, Raycast, Paste and Alfred not to save them. Most respect this.")
+                }
+                HStack {
+                    Button(clipboardCleared ? "Clipboard cleared" : "Clear clipboard now") {
+                        ClipboardGuard.shared.clearNow()
+                        clipboardCleared = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { clipboardCleared = false }
+                    }
+                    Text("Wipes whatever is on the clipboard, from any app.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section("General") {

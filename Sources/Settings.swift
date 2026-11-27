@@ -118,6 +118,12 @@ final class Settings: ObservableObject {
     @Published var autoErase: AutoErase { didSet { d.set(autoErase.rawValue, forKey: "autoErase") } }
     @Published var spellCheck: Bool { didSet { d.set(spellCheck, forKey: "spellCheck") } }
 
+    // Clipboard
+    @Published var clipboardClear: ClipboardClear { didSet { d.set(clipboardClear.rawValue, forKey: "clipboardClear") } }
+    @Published var clipboardClearOnLock: Bool { didSet { d.set(clipboardClearOnLock, forKey: "clipboardClearOnLock") } }
+    @Published var clipboardThisMacOnly: Bool { didSet { d.set(clipboardThisMacOnly, forKey: "clipboardThisMacOnly") } }
+    @Published var clipboardHideFromHistory: Bool { didSet { d.set(clipboardHideFromHistory, forKey: "clipboardHideFromHistory") } }
+
     init() {
         let d = UserDefaults.standard
         d.register(defaults: [
@@ -129,6 +135,8 @@ final class Settings: ObservableObject {
             "rememberLayout": true, "customWidth": 0.0, "customHeight": 0.0, "detached": false,
             "offsetX": 0.0, "offsetY": 0.0, "wasOpen": false,
             "blurWhenAway": false, "autoErase": AutoErase.never.rawValue, "spellCheck": false,
+            "clipboardClear": ClipboardClear.oneMinute.rawValue, "clipboardClearOnLock": true,
+            "clipboardThisMacOnly": true, "clipboardHideFromHistory": true,
         ])
         keepOpen = d.bool(forKey: "keepOpen")
         openOnHover = d.bool(forKey: "openOnHover")
@@ -159,12 +167,17 @@ final class Settings: ObservableObject {
         blurWhenAway = d.bool(forKey: "blurWhenAway")
         autoErase = AutoErase(rawValue: d.integer(forKey: "autoErase")) ?? .never
         spellCheck = d.bool(forKey: "spellCheck")
+        clipboardClear = ClipboardClear(rawValue: d.integer(forKey: "clipboardClear")) ?? .oneMinute
+        clipboardClearOnLock = d.bool(forKey: "clipboardClearOnLock")
+        clipboardThisMacOnly = d.bool(forKey: "clipboardThisMacOnly")
+        clipboardHideFromHistory = d.bool(forKey: "clipboardHideFromHistory")
     }
 
     func resetToDefaults() {
         for key in ["keepOpen", "openOnHover", "hoverNudge", "haptics", "closeOnClickOutside", "hotkeyEnabled",
                     "showMenuBarIcon", "size", "font", "fontSize", "theme", "themeFollowsSystem", "lightTheme", "darkTheme", "opacity", "showWordCount",
                     "hideFromCapture", "lockEnabled", "lockAfter", "blurWhenAway", "autoErase", "spellCheck",
+                    "clipboardClear", "clipboardClearOnLock", "clipboardThisMacOnly", "clipboardHideFromHistory",
                     "rememberLayout", "customWidth", "customHeight", "detached", "offsetX", "offsetY"] {
             d.removeObject(forKey: key)
         }
@@ -177,6 +190,8 @@ final class Settings: ObservableObject {
         opacity = fresh.opacity; showWordCount = fresh.showWordCount; hideFromCapture = fresh.hideFromCapture
         lockEnabled = fresh.lockEnabled; lockAfter = fresh.lockAfter; blurWhenAway = fresh.blurWhenAway
         autoErase = fresh.autoErase; spellCheck = fresh.spellCheck
+        clipboardClear = fresh.clipboardClear; clipboardClearOnLock = fresh.clipboardClearOnLock
+        clipboardThisMacOnly = fresh.clipboardThisMacOnly; clipboardHideFromHistory = fresh.clipboardHideFromHistory
         rememberLayout = fresh.rememberLayout
         resetLayout()
     }

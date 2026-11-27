@@ -128,15 +128,19 @@ struct ScratchpadView: View {
         .padding(.bottom, 10)
     }
 
+    private var copyHelp: String {
+        let rule = settings.clipboardClear
+        return rule == .never ? "Copy everything" : "Copy everything (clipboard clears \(rule.label.lowercased()))"
+    }
+
     private var shouldBlur: Bool { settings.blurWhenAway && !controller.mouseInside }
 
     /// Buttons row, just below the menu bar. The empty middle is the drag handle.
     private var toolbar: some View {
         HStack(spacing: 4) {
             HStack(spacing: 2) {
-                iconButton(copied ? "checkmark" : "doc.on.doc", help: "Copy everything") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(store.text, forType: .string)
+                iconButton(copied ? "checkmark" : "doc.on.doc", help: copyHelp) {
+                    ClipboardGuard.shared.copy(store.text)
                     copied = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
                 }
@@ -152,7 +156,10 @@ struct ScratchpadView: View {
                 }
                 .disabled(lock.isLocked || store.text.isEmpty)
                 if settings.lockEnabled && !lock.isLocked {
-                    iconButton("lock", help: "Lock now") { lock.lock() }
+                    iconButton("lock", help: "Lock now") {
+                        if settings.clipboardClearOnLock { ClipboardGuard.shared.clearIfOurs() }
+                        lock.lock()
+                    }
                 }
             }
 

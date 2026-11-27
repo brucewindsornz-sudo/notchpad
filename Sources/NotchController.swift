@@ -123,6 +123,7 @@ final class NotchController: ObservableObject {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.layout() }
         let lockNow: (Notification) -> Void = { [weak self] _ in
+            if self?.settings.clipboardClearOnLock == true { ClipboardGuard.shared.clearIfOurs() }
             LockManager.shared.lock()
             if self?.state == .expanded, self?.settings.keepOpen == false { self?.collapse() }
         }
