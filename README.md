@@ -20,6 +20,7 @@ A private scratchpad that lives in your MacBook's camera notch.
 With Homebrew:
 
     brew tap brucewindsornz-sudo/notchpad https://github.com/brucewindsornz-sudo/notchpad
+    brew trust brucewindsornz-sudo/notchpad
     brew install --cask notchpad
 
 Update with `brew update && brew upgrade --cask notchpad`. Remove with
