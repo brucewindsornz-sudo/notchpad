@@ -118,9 +118,10 @@ final class NotchController: ObservableObject {
     private var springLast = CACurrentMediaTime()
     private var springDone: (() -> Void)?
     private var springStarted = CACurrentMediaTime()
-    /// When the last drag event arrived. If the button is up and nothing has arrived for a moment,
-    /// the mouse-up went somewhere else (screen lock, Mission Control...) and the move is ended for you.
-    private var lastDragEvent = CACurrentMediaTime()
+    /// Spring frames since the last drag event was handled. If the button is up and nothing has arrived
+    /// for a moment, the mouse-up went somewhere else (screen lock, Mission Control...) and the move is
+    /// ended for you. Counted in frames, not seconds, so a busy moment can't be mistaken for silence.
+    private var framesSinceDrag = 0
     /// Set when a screen change dropped a drag mid-hold: the rest of that hold is ignored.
     private var ignoreDragUntilUp = false
     private var layoutPending = false
@@ -284,7 +285,7 @@ final class NotchController: ObservableObject {
         if ignoreDragUntilUp {
             if NSEvent.pressedMouseButtons & 1 == 0 { ignoreDragUntilUp = false } else { return }
         }
-        lastDragEvent = CACurrentMediaTime()
+        framesSinceDrag = 0
         // A move whose mouse-up never reached us (screen lock, Mission Control, app switch...) must not
         // block every later drag: drop it and start fresh.
         // (The spring watchdog normally ends it; if the spring isn't running, nothing else will.)
@@ -303,7 +304,7 @@ final class NotchController: ObservableObject {
         springTarget = springPos
         springDone = nil
         moveMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] e in
-            if e.type == .leftMouseUp { self?.endMove() } else { self?.lastDragEvent = CACurrentMediaTime(); self?.dragMoved() }
+            if e.type == .leftMouseUp { self?.endMove() } else { self?.framesSinceDrag = 0; self?.dragMoved() }
             return e
         }
         startSpring()
@@ -490,7 +491,13 @@ final class NotchController: ObservableObject {
         let still = abs(springTarget.x - springPos.x) < 0.3 && abs(springTarget.y - springPos.y) < 0.3
             && abs(springVel.dx) < 4 && abs(springVel.dy) < 4
         // Watchdog: the button is up but we never saw the mouse-up -> end the move here.
-        if moveStartMouse != nil, NSEvent.pressedMouseButtons & 1 == 0, now - lastDragEvent > 0.4 { endMove(trackPointer: false) }
+        if moveStartMouse != nil {
+            framesSinceDrag += 1
+            if framesSinceDrag > 60, NSEvent.pressedMouseButtons & 1 == 0 {
+                debugLog("NOTCHPAD_MOVE_ENDED_FOR_YOU")
+                endMove(trackPointer: false)
+            }
+        }
         // Never animate forever (NaN, a target that keeps moving...): land after 2 s without a drag.
         let stuck = moveStartMouse == nil && (now - springStarted > 2 || !springPos.x.isFinite || !springPos.y.isFinite)
         if stuck { springVel = .zero; springPos = springTarget }
