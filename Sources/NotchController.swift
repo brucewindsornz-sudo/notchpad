@@ -86,13 +86,26 @@ final class NotchController: ObservableObject {
 
     private var moveStartMouse: NSPoint?
     private var moveStartFrame = NSRect.zero
-    /// Where the pad would be if the notch weren't pulling on it (follows the pointer exactly).
-    private var moveFreeFrame = NSRect.zero
     /// True while the magnet has caught the pad and it's sitting in the notch spot.
     private var magnetLocked = false
+    /// Whether the pad was drawn floating when this drag began (its content sits higher when floating).
+    private var moveStartDetached = false
+    private var moveMonitor: Any?
     /// Magnet field: inside `magnetReach` points the notch starts pulling; inside `magnetCatch` it snaps in.
-    private let magnetReach: CGFloat = 130
-    private let magnetCatch: CGFloat = 34
+    private let magnetReach: CGFloat = 140
+    private let magnetCatch: CGFloat = 30
+    private let magnetRelease: CGFloat = 58
+
+    // Spring that moves the window smoothly every display frame.
+    private var springTimer: Timer?
+    private var springPos = CGPoint.zero
+    private var springVel = CGVector.zero
+    private var springTarget = CGPoint.zero
+    private var springOmega: CGFloat = 40
+    private var springZeta: CGFloat = 1
+    private var springLast = CACurrentMediaTime()
+    private var springDone: (() -> Void)?
+
     private var resizeStartMouse: NSPoint?
     private var resizeStartSize = CGSize.zero
     private var resizeStartLeft: CGFloat = 0
@@ -190,6 +203,8 @@ final class NotchController: ObservableObject {
 
     func layout() {
         notch = NotchInfo.current()
+        // A drag or a magnet pull is moving the window; it saves its own position when it lands.
+        if moveStartMouse != nil || springTimer != nil { return }
         let floating = state == .expanded && settings.detached
         showsDetached = floating
         panel.setFrame(panelFrame(floating: floating), display: true)
@@ -201,57 +216,78 @@ final class NotchController: ObservableObject {
 
     // MARK: Move and resize
 
+    /// Called by the drag gestures. The first call starts the move; after that, every mouse event
+    /// (not just the ones SwiftUI passes on) drives it, so it tracks the pointer smoothly.
     func moveDrag() {
-        guard state == .expanded else { return }
-        let m = NSEvent.mouseLocation
-        guard let m0 = moveStartMouse else {
-            moveStartMouse = m
-            moveStartFrame = panel.frame
-            moveFreeFrame = panel.frame
-            magnetLocked = !showsDetached
-            openedByHover = false
-            leaveWork?.cancel(); leaveWork = nil
-            return
+        guard state == .expanded, moveStartMouse == nil else { return }
+        moveStartMouse = NSEvent.mouseLocation
+        moveStartFrame = panel.frame
+        moveStartDetached = showsDetached
+        magnetLocked = !showsDetached
+        openedByHover = false
+        leaveWork?.cancel(); leaveWork = nil
+        springPos = panel.frame.origin
+        springVel = .zero
+        springTarget = springPos
+        springDone = nil
+        moveMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] e in
+            if e.type == .leftMouseUp { self?.endMove() } else { self?.dragMoved() }
+            return e
         }
+        startSpring()
+    }
+
+    /// Floating pads drop the menu-bar strip, so their content sits this much higher in the window.
+    private var floatingShift: CGFloat { max(notch.rect.height - 4, 0) }
+
+    private func dragMoved() {
+        guard let m0 = moveStartMouse else { return }
+        let m = NSEvent.mouseLocation
+        let sf = notch.screenFrame
         var free = moveStartFrame
         free.origin.x += m.x - m0.x
         free.origin.y += m.y - m0.y
-        let sf = notch.screenFrame
+        // Keep whatever you grabbed under the pointer when the layout switches between notch and card.
+        if moveStartDetached { free.origin.y += floatingShift }      // express in notch layout
         if free.maxY > sf.maxY { free.origin.y = sf.maxY - free.height }
-        moveFreeFrame = free
+        let home = CGPoint(x: notch.rect.midX - free.width / 2, y: sf.maxY - free.height)
 
-        // Magnet: the closer the pad gets to the notch, the harder it's pulled to the centre,
-        // until it clicks into place. Pull it a little further away to break free.
-        let home = NSPoint(x: notch.rect.midX - free.width / 2, y: sf.maxY - free.height)
         let d = distanceFromNotch(free)
         let wasLocked = magnetLocked
-        magnetLocked = d < (wasLocked ? magnetCatch + 22 : magnetCatch)
-        var f = free
+        magnetLocked = d < (wasLocked ? magnetRelease : magnetCatch)
+
+        var target = free.origin
         if magnetLocked {
-            f.origin = home
+            target = home
         } else if d < magnetReach {
-            let t = 1 - (d - magnetCatch) / (magnetReach - magnetCatch)   // 0 at the edge of the field, 1 at catch
-            let pull = t * t * 0.8
-            f.origin.x += (home.x - f.origin.x) * pull
-            f.origin.y += (home.y - f.origin.y) * pull
+            // Smooth pull that grows as it nears the notch (no sudden step at the edge of the field).
+            let t = min(max((magnetReach - d) / (magnetReach - magnetCatch), 0), 1)
+            let pull = t * t * (3 - 2 * t) * 0.7
+            target.x += (home.x - target.x) * pull
+            target.y += (home.y - target.y) * pull
         }
+        if !magnetLocked { target.y -= floatingShift }                // floating layout sits lower
+
         if magnetLocked != wasLocked {
+            // Swap layouts and move the window by the same amount in one go, so nothing jumps.
+            springPos.y += magnetLocked ? floatingShift : -floatingShift
+            panel.setFrameOrigin(springPos)
+            showsDetached = !magnetLocked
             if magnetLocked && settings.haptics {
                 NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             }
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.12
-                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1)
-                panel.animator().setFrame(f, display: true)
-            }
-        } else {
-            panel.setFrame(f, display: true)
         }
-        let away = !magnetLocked
-        if away != showsDetached { showsDetached = away }
+        springTarget = target
+        if magnetLocked {
+            springOmega = 26; springZeta = 0.62          // caught: a quick pull with a small settle, like a magnet
+        } else if d < magnetReach {
+            springOmega = 34; springZeta = 0.9
+        } else {
+            springOmega = 55; springZeta = 1             // free: follows the pointer closely, just smoothed
+        }
     }
 
-    /// How far the pad's top-centre is from its spot in the notch, in points.
+    /// How far the pad's top-centre is from its spot in the notch, in points (notch layout).
     private func distanceFromNotch(_ f: NSRect) -> CGFloat {
         let dx = f.midX - notch.rect.midX
         let dy = notch.screenFrame.maxY - f.maxY
@@ -261,19 +297,87 @@ final class NotchController: ObservableObject {
     func endMove() {
         guard moveStartMouse != nil else { return }
         moveStartMouse = nil
-        let free = moveFreeFrame
-        if magnetLocked || distanceFromNotch(free) < magnetReach * 0.6 {
+        if let mon = moveMonitor { NSEvent.removeMonitor(mon); moveMonitor = nil }
+        let sf = notch.screenFrame
+        let f = panel.frame
+        var current = f
+        if showsDetached { current.origin.y += floatingShift }       // back to notch-layout terms
+        if magnetLocked || distanceFromNotch(current) < magnetReach * 0.55 {
             magnetLocked = false
             debugLog("NOTCHPAD_DROP docked=true")
-            dock()                    // caught by the magnet: settle into the centre of the notch
+            if showsDetached {
+                springPos.y += floatingShift
+                panel.setFrameOrigin(springPos)
+                showsDetached = false
+            }
+            // Let go near the notch: it's drawn into the exact centre.
+            springTarget = CGPoint(x: notch.rect.midX - f.width / 2, y: sf.maxY - f.height)
+            springOmega = 22; springZeta = 0.68
+            springDone = { [weak self] in self?.dock(animated: false) }
         } else {
             magnetLocked = false
-            let f = panel.frame
-            settings.offsetX = Double(f.midX - notch.rect.midX)
-            settings.offsetY = Double(notch.screenFrame.maxY - f.maxY)
-            settings.detached = true
             debugLog("NOTCHPAD_DROP docked=false")
+            // Glide to rest where it was let go, then remember the spot.
+            springOmega = 30; springZeta = 1
+            springDone = { [weak self] in
+                guard let self = self else { return }
+                let f = self.panel.frame
+                self.settings.offsetX = Double(f.midX - self.notch.rect.midX)
+                self.settings.offsetY = Double(self.notch.screenFrame.maxY - f.maxY)
+                self.settings.detached = true
+            }
         }
+    }
+
+    /// Stops a drag or pull in progress without saving a new spot (used when the pad closes mid-drag).
+    private func cancelMove() {
+        moveStartMouse = nil
+        if let mon = moveMonitor { NSEvent.removeMonitor(mon); moveMonitor = nil }
+        magnetLocked = false
+        springDone = nil
+        stopSpring()
+    }
+
+    // MARK: Spring
+
+    private func startSpring() {
+        springLast = CACurrentMediaTime()
+        guard springTimer == nil else { return }
+        let t = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in self?.springTick() }
+        RunLoop.main.add(t, forMode: .common)
+        springTimer = t
+    }
+
+    private func stopSpring() {
+        springTimer?.invalidate()
+        springTimer = nil
+    }
+
+    private func springTick() {
+        let now = CACurrentMediaTime()
+        var dt = min(now - springLast, 1.0 / 30.0)
+        springLast = now
+        let w = springOmega, z = springZeta
+        // Small fixed steps keep the spring stable whatever the frame rate.
+        while dt > 0 {
+            let h = min(dt, 1.0 / 480.0)
+            let ax = w * w * (springTarget.x - springPos.x) - 2 * z * w * springVel.dx
+            let ay = w * w * (springTarget.y - springPos.y) - 2 * z * w * springVel.dy
+            springVel.dx += ax * h; springVel.dy += ay * h
+            springPos.x += springVel.dx * h; springPos.y += springVel.dy * h
+            dt -= h
+        }
+        let still = abs(springTarget.x - springPos.x) < 0.3 && abs(springTarget.y - springPos.y) < 0.3
+            && abs(springVel.dx) < 4 && abs(springVel.dy) < 4
+        if still && moveStartMouse == nil {
+            springPos = springTarget
+            panel.setFrameOrigin(CGPoint(x: springPos.x.rounded(), y: springPos.y.rounded()))
+            stopSpring()
+            let done = springDone; springDone = nil
+            done?()
+            return
+        }
+        panel.setFrameOrigin(springPos)
     }
 
     func resizeDrag() {
@@ -305,18 +409,37 @@ final class NotchController: ObservableObject {
     func endResize() { resizeStartMouse = nil }
 
     /// Put the pad back in the notch (keeps its size).
-    func dock() {
-        settings.detached = false
-        settings.offsetX = 0
-        settings.offsetY = 0
-        showsDetached = false
-        guard state == .expanded else { return }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.28
-            // Quick pull with a soft landing, like a magnet catching metal.
-            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1)
-            panel.animator().setFrame(panelFrame(floating: false), display: true)
+    func dock() { dock(animated: true) }
+
+    func dock(animated: Bool) {
+        let wasDetached = showsDetached
+        let saveDocked = { [weak self] in
+            guard let self = self else { return }
+            self.settings.detached = false
+            self.settings.offsetX = 0
+            self.settings.offsetY = 0
         }
+        showsDetached = false
+        let home = panelFrame(floating: false)
+        guard state == .expanded, animated, moveStartMouse == nil else {
+            stopSpring()
+            saveDocked()
+            if state == .expanded { panel.setFrame(home, display: true) }
+            return
+        }
+        // Same magnet-style pull as dragging it back.
+        var start = panel.frame
+        if wasDetached { start.origin.y += floatingShift }
+        panel.setFrame(NSRect(origin: start.origin, size: home.size), display: true)
+        springPos = start.origin
+        springVel = .zero
+        springTarget = home.origin
+        springOmega = 22; springZeta = 0.68
+        springDone = { [weak self] in
+            self?.panel.setFrame(home, display: true)
+            saveDocked()        // saved once it lands, so nothing re-positions it mid-pull
+        }
+        startSpring()
     }
 
     private func applyPrivacy() {
@@ -407,7 +530,7 @@ final class NotchController: ObservableObject {
         guard state == .expanded else { state = .collapsed; return }
         leaveWork?.cancel(); leaveWork = nil
         NoteStore.shared.saveNow()
-        moveStartMouse = nil; resizeStartMouse = nil
+        cancelMove(); resizeStartMouse = nil
         settings.wasOpen = false
         let wasFloating = showsDetached
         state = .collapsed

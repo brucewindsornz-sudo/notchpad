@@ -112,8 +112,8 @@ jobs:
           sleep 1
           screencapture -x pad-moved.png || true
           # Drag it back to just off the notch: the magnet should pull it into the centre.
-          # Floating pads drop the menu-bar spacer, so the button sits about 21 points higher in the pad.
-          X2=$((X+250)); Y2=$((Y+300-21))
+          # The window shifts to keep the button under the pointer when the layout changes.
+          X2=$((X+250)); Y2=$((Y+300))
           cliclick m:$X2,$Y2 w:300 dd:$X2,$Y2 w:100 dm:$((X2-150)),$((Y2-200)) w:100 dm:$((X2-230)),$((Y2-285)) w:100 du:$((X2-230)),$((Y2-285))
           sleep 1
           screencapture -x pad-docked-again.png || true
