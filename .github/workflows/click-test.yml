@@ -5,7 +5,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15-intel, macos-15]
+        os: [macos-15]   # Intel test VMs have no graphics support and can't draw the open pad
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
