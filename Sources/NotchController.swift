@@ -23,15 +23,22 @@ struct NotchInfo: Equatable {
         if s.safeAreaInsets.top > 0, let left = s.auxiliaryTopLeftArea, let right = s.auxiliaryTopRightArea {
             let w = f.width - left.width - right.width
             let h = s.safeAreaInsets.top
-            // On some display scalings the menu bar is a few points taller than the camera housing.
-            let bar = max(h, f.maxY - s.visibleFrame.maxY)
             return NotchInfo(rect: CGRect(x: f.minX + left.width, y: f.maxY - h, width: w, height: h),
-                             screenFrame: f, hasNotch: true, menuBarHeight: min(bar, h + 24))
+                             screenFrame: f, hasNotch: true, menuBarHeight: barHeight(of: s))
         }
-        let menuBar = max(f.maxY - s.visibleFrame.maxY, 24)
+        let menuBar = barHeight(of: s)
         let w: CGFloat = 190
         return NotchInfo(rect: CGRect(x: f.midX - w / 2, y: f.maxY - menuBar, width: w, height: menuBar),
                          screenFrame: f, hasNotch: false, menuBarHeight: menuBar)
+    }
+
+    /// How tall the menu bar is on this screen. On some display scalings it's a few points taller
+    /// than the camera housing; when it's set to hide automatically it can't be measured, so allow a little extra.
+    private static func barHeight(of s: NSScreen) -> CGFloat {
+        let housing = s.safeAreaInsets.top
+        let measured = s.frame.maxY - s.visibleFrame.maxY
+        if measured >= 20 { return min(max(measured, housing, 24), max(housing, 24) + 40) }
+        return housing > 0 ? housing + 6 : 24
     }
 }
 
@@ -152,7 +159,7 @@ final class NotchController: ObservableObject {
         settings.$hideFromCapture.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.applyPrivacy() } }.store(in: &bag)
 
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
-                                               object: nil, queue: .main) { [weak self] _ in self?.layout() }
+                                               object: nil, queue: .main) { [weak self] _ in self?.screenChanged() }
         let lockNow: (Notification) -> Void = { [weak self] _ in
             if self?.settings.clipboardClearOnLock == true { ClipboardGuard.shared.clearIfOurs() }
             LockManager.shared.lock()
@@ -161,6 +168,18 @@ final class NotchController: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main, using: lockNow)
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main, using: lockNow)
         DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main, using: lockNow)
+    }
+
+    /// A display was added, removed or rescaled: drop any drag or pull in flight (its numbers belong
+    /// to the old screen) and lay the pad out again for the new one.
+    private func screenChanged() {
+        moveStartMouse = nil
+        if let mon = moveMonitor { NSEvent.removeMonitor(mon); moveMonitor = nil }
+        magnetLocked = false
+        springDone = nil
+        stopSpring()
+        resizeStartMouse = nil
+        layout()
     }
 
     /// Escape hatch: back in the notch, default size, not pinned, closed.
@@ -189,11 +208,18 @@ final class NotchController: ObservableObject {
     // MARK: Geometry
 
     var padSize: CGSize {
+        var size = settings.size.size
         if settings.hasCustomSize {
-            return CGSize(width: min(max(settings.customWidth, Self.minSize.width), Self.maxSize.width),
+            size = CGSize(width: min(max(settings.customWidth, Self.minSize.width), Self.maxSize.width),
                           height: min(max(settings.customHeight, Self.minSize.height), Self.maxSize.height))
         }
-        return settings.size.size
+        // Never bigger than the screen it's on (a large pad on a small external display).
+        let sf = notch.screenFrame
+        if sf.width > 0, sf.height > 0 {
+            size.width = min(size.width, max(sf.width, 200))
+            size.height = min(size.height, max(sf.height - notch.menuBarHeight, 120))
+        }
+        return size
     }
 
     /// Area that counts as "over the notch".
@@ -248,7 +274,9 @@ final class NotchController: ObservableObject {
 
     /// Called by the drag gestures. The first call starts the move; after that, every mouse event
     /// (not just the ones SwiftUI passes on) drives it, so it tracks the pointer smoothly.
-    func moveDrag() {
+    /// `translation` is how far the pointer had already travelled when the gesture was recognised
+    /// (window coordinates, y down), so the pad doesn't lag behind by that much.
+    func moveDrag(translation: CGSize = .zero) {
         guard state == .expanded else { return }
         lastDragEvent = CACurrentMediaTime()
         // A move whose mouse-up never reached us (screen lock, Mission Control, app switch...) must not
@@ -256,7 +284,9 @@ final class NotchController: ObservableObject {
         // (The spring watchdog normally ends it; if the spring isn't running, nothing else will.)
         if moveStartMouse != nil, springTimer == nil { cancelMove() }
         guard moveStartMouse == nil else { return }
-        moveStartMouse = NSEvent.mouseLocation
+        let m = NSEvent.mouseLocation
+        let lead = CGSize(width: min(max(translation.width, -40), 40), height: min(max(translation.height, -40), 40))
+        moveStartMouse = NSPoint(x: m.x - lead.width, y: m.y + lead.height)
         moveStartFrame = panel.frame
         moveStartDetached = showsDetached
         magnetLocked = !showsDetached
@@ -274,7 +304,7 @@ final class NotchController: ObservableObject {
     }
 
     /// Floating pads drop the menu-bar strip, so their content sits this much higher in the window.
-    private var floatingShift: CGFloat { max(notch.menuBarHeight - 4, 0) }
+    private var floatingShift: CGFloat { max(notch.menuBarHeight - 2, 0) }
     /// Highest a floating pad's top edge may go: its buttons must start below the menu bar,
     /// because macOS's menu bar takes every click in that strip (and the camera housing hides part of it).
     private var floatingTopLimit: CGFloat { notch.screenFrame.maxY - notch.menuBarHeight }
@@ -292,6 +322,23 @@ final class NotchController: ObservableObject {
         p.y = max(p.y, sf.minY + s.height - size.height)        // bottom edge stays on screen...
         p.y = min(p.y, floatingTopLimit - size.height)          // ...but the top limit always wins
         return p
+    }
+
+    /// Moves the window to a spring position, but never draws it where its buttons can't be clicked:
+    /// a floating pad stays below the menu bar and on screen, a docked one never rises past the top.
+    private func present(_ p: CGPoint, rounded: Bool = false) {
+        var q = rounded ? CGPoint(x: p.x.rounded(), y: p.y.rounded()) : p
+        let size = panel.frame.size
+        let sf = notch.screenFrame
+        if showsDetached {
+            q = clampFloating(q, size: size)
+        } else if sf.height > 0 {
+            q.y = min(q.y, sf.maxY - size.height)
+        }
+        // Hit a limit: stop there rather than pushing on past it.
+        if abs(q.x - p.x) > 0.6 { springPos.x = q.x; springVel.dx = 0 }
+        if abs(q.y - p.y) > 0.6 { springPos.y = q.y; springVel.dy = 0 }
+        panel.setFrameOrigin(q)
     }
 
     private func dragMoved() {
@@ -328,8 +375,8 @@ final class NotchController: ObservableObject {
         if magnetLocked != wasLocked {
             // Swap layouts and move the window by the same amount in one go, so nothing jumps.
             springPos.y += magnetLocked ? floatingShift : -floatingShift
-            panel.setFrameOrigin(springPos)
             showsDetached = !magnetLocked
+            present(springPos)
             if magnetLocked && settings.haptics {
                 NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             }
@@ -351,9 +398,11 @@ final class NotchController: ObservableObject {
         return (dx * dx + dy * dy).squareRoot()
     }
 
-    func endMove() {
+    /// `trackPointer` is false when the move is ended for you (its mouse-up never arrived): the pointer
+    /// may be anywhere by then, so the pad settles where it last was instead of chasing it.
+    func endMove(trackPointer: Bool = true) {
         guard moveStartMouse != nil else { return }
-        dragMoved()                  // decide from where the pointer finally is, not where the spring has got to
+        if trackPointer { dragMoved() }   // decide from where the pointer finally is, not where the spring has got to
         moveStartMouse = nil
         springStarted = CACurrentMediaTime()
         if let mon = moveMonitor { NSEvent.removeMonitor(mon); moveMonitor = nil }
@@ -366,8 +415,8 @@ final class NotchController: ObservableObject {
             debugLog("NOTCHPAD_DROP docked=true")
             if showsDetached {
                 springPos.y += floatingShift
-                panel.setFrameOrigin(springPos)
                 showsDetached = false
+                present(springPos)
             }
             // Let go near the notch: it's drawn into the exact centre.
             springTarget = CGPoint(x: notch.rect.midX - f.width / 2, y: sf.maxY - f.height)
@@ -397,7 +446,7 @@ final class NotchController: ObservableObject {
         let done = springDone
         springDone = nil
         stopSpring()
-        if done != nil { springPos = springTarget; panel.setFrameOrigin(springPos) }
+        if done != nil { springPos = springTarget; present(springPos) }
         done?()             // a drop or dock already decided: save it rather than lose it
     }
 
@@ -434,20 +483,20 @@ final class NotchController: ObservableObject {
         let still = abs(springTarget.x - springPos.x) < 0.3 && abs(springTarget.y - springPos.y) < 0.3
             && abs(springVel.dx) < 4 && abs(springVel.dy) < 4
         // Watchdog: the button is up but we never saw the mouse-up -> end the move here.
-        if moveStartMouse != nil, NSEvent.pressedMouseButtons & 1 == 0, now - lastDragEvent > 0.4 { endMove() }
+        if moveStartMouse != nil, NSEvent.pressedMouseButtons & 1 == 0, now - lastDragEvent > 0.4 { endMove(trackPointer: false) }
         // Never animate forever (NaN, a target that keeps moving...): land after 2 s without a drag.
         let stuck = moveStartMouse == nil && (now - springStarted > 2 || !springPos.x.isFinite || !springPos.y.isFinite)
         if stuck { springVel = .zero; springPos = springTarget }
         if (still || stuck) && moveStartMouse == nil {
             springPos = springTarget
-            panel.setFrameOrigin(CGPoint(x: springPos.x.rounded(), y: springPos.y.rounded()))
+            present(springPos, rounded: true)
             stopSpring()
             let done = springDone; springDone = nil
             done?()
             if layoutPending, springTimer == nil { layout() }
             return
         }
-        panel.setFrameOrigin(springPos)
+        present(springPos)
     }
 
     func resizeDrag() {

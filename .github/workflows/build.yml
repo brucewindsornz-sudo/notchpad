@@ -33,7 +33,12 @@ jobs:
       - run: brew install cliclick
       - name: The pad can't get stuck under the menu bar
         # These machines have no graphics card, so the pad is drawn without shadow and blur.
-        run: NOTCHPAD_NO_EFFECTS=1 tests/stuck-pad.sh "$PWD/build/NotchPad.app/Contents/MacOS/NotchPad"
+        run: |
+          STUCK_PAD_CI=1 NOTCHPAD_NO_EFFECTS=1 tests/stuck-pad.sh "$PWD/build/NotchPad.app/Contents/MacOS/NotchPad" || {
+            f=$(ls -t ~/Library/Logs/DiagnosticReports/NotchPad* 2>/dev/null | head -1) || true
+            [ -n "$f" ] && python3 -c "import json,sys; t=open(sys.argv[1]).read().split('\n',1)[1]; d=json.loads(t); imgs=d['usedImages']; th=[x for x in d['threads'] if x.get('triggered')][0]; [print(i, imgs[fr['imageIndex']].get('name','?'), fr.get('symbol','?')) for i,fr in enumerate(th['frames'][:60])]" "$f" || echo "no crash report"
+            exit 1
+          }
       - name: Make disk image
         run: ./make-dmg.sh
       - uses: actions/upload-artifact@v4
@@ -127,7 +132,7 @@ jobs:
           grep NOTCHPAD_DROP move.log | head -1 | grep -q "docked=false" && echo "OK: drag away leaves it floating" || { echo "Did not float"; exit 1; }
           grep NOTCHPAD_DROP move.log | tail -1 | grep -q "docked=true" && echo "OK: magnet docks it near the notch" || { echo "Magnet did not dock"; exit 1; }
       - name: The pad can't get stuck under the menu bar
-        run: tests/stuck-pad.sh /Applications/NotchPad.app/Contents/MacOS/NotchPad
+        run: STUCK_PAD_CI=1 tests/stuck-pad.sh /Applications/NotchPad.app/Contents/MacOS/NotchPad
       - name: Load a Ghostty theme and show it in the pad and Settings
         run: |
           APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad

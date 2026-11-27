@@ -264,7 +264,7 @@ struct ScratchpadView: View {
             Button("Quit NotchPad") { NSApp.terminate(nil) }
         }
         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .global)
-            .onChanged { _ in controller.moveDrag() }
+            .onChanged { v in controller.moveDrag(translation: v.translation) }
             .onEnded { _ in controller.endMove() })
     }
 
@@ -407,13 +407,13 @@ struct MoveHandle: View {
                 dragging = false; hovering = false
             }
             .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                .onChanged { _ in
+                .onChanged { v in
                     if !dragging {
                         dragging = true
                         if hovering { NSCursor.pop() }   // swap the open hand for a closed one
                         NSCursor.closedHand.push()
                     }
-                    controller.moveDrag()
+                    controller.moveDrag(translation: v.translation)
                 }
                 .onEnded { _ in
                     if dragging {
@@ -434,23 +434,29 @@ struct MoveHandle: View {
     }
 }
 
+/// Three short diagonal lines, like a window's resize corner.
+struct GripLines: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        for i in 0..<3 {
+            let o = CGFloat(i) * 4
+            p.move(to: CGPoint(x: r.maxX - 2, y: r.minY + o + 2))
+            p.addLine(to: CGPoint(x: r.minX + o + 2, y: r.maxY - 2))
+        }
+        return p
+    }
+}
+
 /// Drag the bottom-right corner to resize. The new size is remembered.
 struct ResizeGrip: View {
     @ObservedObject var controller: NotchController
     var color: Color
 
     var body: some View {
-        Canvas { ctx, size in
-            for i in 0..<3 {
-                let o = CGFloat(i) * 4
-                var p = Path()
-                p.move(to: CGPoint(x: size.width - 2, y: o + 2))
-                p.addLine(to: CGPoint(x: o + 2, y: size.height - 2))
-                ctx.stroke(p, with: .color(color), lineWidth: 1.2)
-            }
-        }
-        .frame(width: 12, height: 12)
-        .padding(3)
+        GripLines()
+            .stroke(color, lineWidth: 1.2)
+            .frame(width: 12, height: 12)
+            .padding(3)
         .contentShape(Rectangle())
         .help("Drag to resize")
         .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
