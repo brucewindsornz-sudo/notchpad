@@ -157,6 +157,14 @@ struct ScratchpadView: View {
                            tint: settings.keepOpen ? .accentColor : nil) {
                     settings.keepOpen.toggle()
                 }
+                .background(GeometryReader { g in
+                    Color.clear.onAppear {
+                        // Report the pin button's on-screen centre (top-left origin) for the click test.
+                        let f = g.frame(in: .global), w = controller.panel.frame
+                        let screenTop = controller.notch.screenFrame.maxY
+                        debugLog("NOTCHPAD_PIN_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
+                    }
+                })
                 if controller.showsDetached {
                     iconButton("arrow.up.to.line", help: "Put back in the notch") { controller.dock() }
                 }

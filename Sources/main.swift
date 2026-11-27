@@ -2,6 +2,13 @@ import AppKit
 import SwiftUI
 import Combine
 
+/// Test hooks, only active when NOTCHPAD_DEBUG is set (used by the GitHub build checks).
+let notchPadDebug = ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG"] != nil
+func debugLog(_ message: String) {
+    guard notchPadDebug else { return }
+    FileHandle.standardError.write((message + "\n").data(using: .utf8)!)
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let controller = NotchController()
     private let settings = Settings.shared
@@ -19,6 +26,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.start()
         NotchActions.dock = { [weak self] in self?.controller.dock() }
         controller.restoreOnLaunch()
+        if notchPadDebug {
+            settings.$keepOpen.dropFirst().sink { on in debugLog("NOTCHPAD_PIN=\(on)") }.store(in: &bag)
+            if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_OPEN"] != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.controller.expand(byHover: false) }
+            }
+        }
 
         hotKey = HotKey { [weak self] in self?.controller.toggle() }
         settings.$hotkeyEnabled.sink { [weak self] on in

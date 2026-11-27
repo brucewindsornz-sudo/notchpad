@@ -185,7 +185,7 @@ final class NotchController: ObservableObject {
         let floating = state == .expanded && settings.detached
         showsDetached = floating
         panel.setFrame(panelFrame(floating: floating), display: true)
-        if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG"] != nil {
+        if notchPadDebug {
             let f = panel.frame
             FileHandle.standardError.write("NOTCHPAD_FRAME top=\(f.maxY) screenTop=\(notch.screenFrame.maxY) notch=\(notch.rect)\n".data(using: .utf8)!)
         }
