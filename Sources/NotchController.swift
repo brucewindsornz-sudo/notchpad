@@ -146,6 +146,7 @@ final class NotchController: ObservableObject {
             guard let self = self else { return e }
             if e.keyCode == 53, self.state == .expanded { self.collapse(); return nil } // Esc
             if e.modifierFlags.contains(.command), e.charactersIgnoringModifiers == "q" { NSApp.terminate(nil); return nil }
+            if e.window === self.panel, self.editingShortcut(e) { return nil }
             return e
         }) { monitors.append(l) }
 
@@ -171,6 +172,25 @@ final class NotchController: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main, using: lockNow)
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main, using: lockNow)
         DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main, using: lockNow)
+    }
+
+    /// Command-C, V, X, A and Z in the pad. NotchPad has no menu bar of its own, and on a Mac these
+    /// shortcuts normally come from the Edit menu, so without this they would do nothing.
+    private func editingShortcut(_ e: NSEvent) -> Bool {
+        let flags = e.modifierFlags.intersection([.command, .control, .option, .shift])
+        guard flags == .command || flags == [.command, .shift] else { return false }
+        let key = (e.charactersIgnoringModifiers ?? "").lowercased()
+        let action: Selector
+        switch (key, flags == .command) {
+        case ("c", true): action = #selector(NSText.copy(_:))
+        case ("v", true): action = #selector(NSText.paste(_:))
+        case ("x", true): action = #selector(NSText.cut(_:))
+        case ("a", true): action = #selector(NSResponder.selectAll(_:))
+        case ("z", true): action = Selector(("undo:"))
+        case ("z", false): action = Selector(("redo:"))
+        default: return false
+        }
+        return NSApp.sendAction(action, to: nil, from: self)
     }
 
     /// A display was added, removed or rescaled: drop any drag or pull in flight (its numbers belong
