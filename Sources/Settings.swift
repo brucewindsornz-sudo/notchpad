@@ -75,7 +75,7 @@ enum AutoErase: Int, CaseIterable, Identifiable {
 /// The buttons along the top of the pad, in the order they appear. Settings and Close can't be hidden
 /// (Settings is the way back in if the menu bar icon is off).
 enum PadButton: String, CaseIterable, Identifiable {
-    case copy, clearClipboard, erase, move, lock, pin, dock, settings, close
+    case copy, clearClipboard, erase, move, lock, terminal, pin, dock, settings, close
     var id: String { rawValue }
     var symbol: String {
         switch self {
@@ -84,6 +84,7 @@ enum PadButton: String, CaseIterable, Identifiable {
         case .erase: return "trash"
         case .move: return "arrow.up.and.down.and.arrow.left.and.right"
         case .lock: return "lock"
+        case .terminal: return "terminal"
         case .pin: return "pin"
         case .dock: return "arrow.uturn.backward"   // drawn as a boomerang instead (see PadButtonIcon)
         case .settings: return "gearshape"
@@ -97,6 +98,7 @@ enum PadButton: String, CaseIterable, Identifiable {
         case .erase: return "Erase note"
         case .move: return "Move"
         case .lock: return "Lock now"
+        case .terminal: return "Terminal mode"
         case .pin: return "Keep open"
         case .dock: return "Boomerang"
         case .settings: return "Settings"
@@ -110,6 +112,7 @@ enum PadButton: String, CaseIterable, Identifiable {
         case .erase: return "Click twice to erase the note. It can't be undone."
         case .move: return "Drag to move the pad anywhere. Bring it back to the notch and it snaps into the centre."
         case .lock: return "Hides the note until Touch ID or your password. Only shown when Lock with Touch ID is on."
+        case .terminal: return "Switches the pad between your note and a command line. Only shown when Terminal mode is on, further down."
         case .pin: return "Keeps the pad open until you close it."
         case .dock: return "Flies a moved pad back into the notch, like a boomerang. Only shown while it's been moved."
         case .settings: return "Opens these settings. Always shown, so you can't lock yourself out."
@@ -173,6 +176,13 @@ final class Settings: ObservableObject {
         if on { hiddenButtons.remove(b.rawValue) } else { hiddenButtons.insert(b.rawValue) }
     }
 
+    // Terminal mode (optional; does nothing until you install the add-on yourself)
+    @Published var terminalEnabled: Bool { didSet { d.set(terminalEnabled, forKey: "terminalEnabled") } }
+    /// The pad is showing the command line rather than the note.
+    @Published var terminalMode: Bool { didSet { d.set(terminalMode, forKey: "terminalMode") } }
+    /// Also load ~/.zshrc (aliases and functions) for each command.
+    @Published var terminalFullShell: Bool { didSet { d.set(terminalFullShell, forKey: "terminalFullShell") } }
+
     // Clipboard
     @Published var clipboardClear: ClipboardClear { didSet { d.set(clipboardClear.rawValue, forKey: "clipboardClear") } }
     @Published var clipboardClearOnLock: Bool { didSet { d.set(clipboardClearOnLock, forKey: "clipboardClearOnLock") } }
@@ -193,6 +203,7 @@ final class Settings: ObservableObject {
             "clipboardClear": ClipboardClear.oneMinute.rawValue, "clipboardClearOnLock": true,
             "clipboardThisMacOnly": true, "clipboardHideFromHistory": true,
             "hiddenButtons": [String](),
+            "terminalEnabled": false, "terminalMode": false, "terminalFullShell": false,
         ])
         keepOpen = d.bool(forKey: "keepOpen")
         openOnHover = d.bool(forKey: "openOnHover")
@@ -228,6 +239,9 @@ final class Settings: ObservableObject {
         clipboardThisMacOnly = d.bool(forKey: "clipboardThisMacOnly")
         clipboardHideFromHistory = d.bool(forKey: "clipboardHideFromHistory")
         hiddenButtons = Set(d.stringArray(forKey: "hiddenButtons") ?? [])
+        terminalEnabled = d.bool(forKey: "terminalEnabled")
+        terminalMode = d.bool(forKey: "terminalMode")
+        terminalFullShell = d.bool(forKey: "terminalFullShell")
     }
 
     func resetToDefaults() {
@@ -235,6 +249,7 @@ final class Settings: ObservableObject {
                     "showMenuBarIcon", "size", "font", "fontSize", "theme", "themeFollowsSystem", "lightTheme", "darkTheme", "opacity", "showWordCount",
                     "hideFromCapture", "lockEnabled", "lockAfter", "blurWhenAway", "autoErase", "spellCheck",
                     "clipboardClear", "clipboardClearOnLock", "clipboardThisMacOnly", "clipboardHideFromHistory", "hiddenButtons",
+                    "terminalEnabled", "terminalMode", "terminalFullShell",
                     "rememberLayout", "customWidth", "customHeight", "detached", "offsetX", "offsetY"] {
             d.removeObject(forKey: key)
         }
@@ -250,6 +265,7 @@ final class Settings: ObservableObject {
         clipboardClear = fresh.clipboardClear; clipboardClearOnLock = fresh.clipboardClearOnLock
         clipboardThisMacOnly = fresh.clipboardThisMacOnly; clipboardHideFromHistory = fresh.clipboardHideFromHistory
         hiddenButtons = fresh.hiddenButtons
+        terminalEnabled = fresh.terminalEnabled; terminalMode = fresh.terminalMode; terminalFullShell = fresh.terminalFullShell
         rememberLayout = fresh.rememberLayout
         resetLayout()
     }

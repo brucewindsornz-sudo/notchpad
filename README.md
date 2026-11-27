@@ -35,6 +35,8 @@ Needs macOS 13 Ventura or later. Built for Apple Silicon and Intel.
   bottom-right corner to resize. Bring it back near the notch and it's pulled in and
   snaps to the centre, like a magnet. Size and position are remembered
   after a restart, and if it was pinned open it reopens on launch.
+- Optional terminal mode (Settings › Terminal mode): run shell commands right in the pad
+  and copy the output or add it to your note, via a small script you install yourself.
 
 ## If the pad ever gets stuck
 
@@ -70,8 +72,49 @@ selection-background = #33415e
 `background` and `foreground` are required. `cursor-color` sets the cursor and highlights
 (if it's missing, `palette = 4=` is used), and `selection-background` sets the text selection.
 
+## Terminal mode (optional add-on)
+Click the terminal icon in the pad's top bar and it turns the theme's accent colour, switching
+the pad from your note to a command line. Type a command, press Return, and the output appears
+right in the pad.
+
+It is a command runner, not a full terminal:
+
+- One command runs at a time, with output kept up to about 200 000 characters per command.
+  There is no support for `sudo`, password prompts, or full-screen programs such as `vim` or
+  `htop` (use Terminal for those).
+- Click Stop or press Control + C to stop a running command. Press Control + L or type `clear`
+  to clear the transcript, and type `exit` to return to your note.
+- Changing directory with `cd` carries over to the next command in `zsh`, `bash`, `sh`, `dash`
+  and `ksh` (other shells such as `fish` still run commands, but `cd` does not carry over).
+- Press Up and Down to step through your command history (kept in memory only, not across
+  restarts).
+- Use the small buttons beside the input row to copy the last command's output, add the last
+  command and its output to your note, or clear the transcript.
+
+**How to switch it on:** open Settings › Terminal mode, turn it on, copy the install command,
+and paste it into Terminal once. If a future NotchPad update changes the add-on script, Settings
+will let you know so you can paste the install command again.
+
+**How to remove it:** click Copy remove command in Settings › Terminal mode and paste it into
+Terminal, or run:
+
+```sh
+rm -rf ~/Library/Application\ Scripts/com.newzeebuild.notchpad
+```
+
+**Shell setup and permissions:** commands run in your login shell, so `PATH` changes from your
+login profile (such as Homebrew in `~/.zprofile`) work out of the box. Turn on "Load my full
+shell setup" in Settings › Terminal mode if you also want your interactive shell setup
+(`~/.zshrc` for zsh, `~/.bashrc` for bash) for aliases and functions. macOS may ask once for
+permission before commands can read protected folders such as Desktop, Documents or Downloads.
+
 ## Privacy
-- App Sandbox with no network entitlement: macOS blocks all internet access.
+- App Sandbox with no network entitlement: macOS blocks all internet access from NotchPad itself,
+  and nothing changes unless you install the optional terminal add-on.
+- With the terminal add-on installed, commands you run from the pad run outside NotchPad as you,
+  much as they would in Terminal, so those commands can use the internet and your files. Commands,
+  history and output are held in memory only and are never saved unless you add them to your note.
+  macOS only lets you (never NotchPad) put the add-on script in place.
 - Notes are encrypted (AES-256-GCM) on disk; the key lives in your login Keychain.
 - Hidden from screenshots and screen sharing by default.
 - Optional Touch ID lock, blur-when-away and auto-erase.

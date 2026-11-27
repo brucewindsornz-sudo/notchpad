@@ -29,6 +29,9 @@ if [[ -f Resources/AppIcon.png ]] && command -v iconutil >/dev/null; then
   done
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns" && rm -rf "$ICONSET"
 fi
+mkdir -p "$APP/Contents/Resources/TerminalAddOn"
+cp terminal-addon/notchpad-run terminal-addon/install.sh "$APP/Contents/Resources/TerminalAddOn/"
+chmod 755 "$APP/Contents/Resources/TerminalAddOn/notchpad-run" "$APP/Contents/Resources/TerminalAddOn/install.sh"
 codesign --force --sign - --options runtime --entitlements Resources/NotchPad.entitlements "$APP"
 echo "Built $APP"
 

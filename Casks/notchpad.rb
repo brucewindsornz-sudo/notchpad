@@ -24,10 +24,16 @@ cask "notchpad" do
 
   uninstall quit: "com.newzeebuild.notchpad"
 
-  # brew uninstall --zap notchpad also deletes notes and settings.
+  # brew uninstall --zap notchpad also deletes notes, settings and the terminal add-on.
   zap trash: [
     "~/Library/Containers/com.newzeebuild.notchpad",
     "~/Library/Application Support/NotchPad",
     "~/Library/Preferences/com.newzeebuild.notchpad.plist",
+    "~/Library/Application Scripts/com.newzeebuild.notchpad",
   ]
+
+  caveats <<~EOS
+    Optional terminal mode is off by default. To enable it, open NotchPad
+    Settings › Terminal mode and run the install command shown there.
+  EOS
 end

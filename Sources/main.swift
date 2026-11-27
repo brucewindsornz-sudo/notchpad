@@ -28,6 +28,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.restoreOnLaunch()
         if notchPadDebug {
             settings.$keepOpen.dropFirst().sink { on in debugLog("NOTCHPAD_PIN=\(on)") }.store(in: &bag)
+            settings.$terminalMode.dropFirst().sink { on in debugLog("NOTCHPAD_TERM_MODE=\(on)") }.store(in: &bag)
+            if let commands = ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_TERMINAL"] {
+                // Switch terminal mode on, open the pad and run these commands, one per line.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                    guard let self = self else { return }
+                    self.settings.terminalEnabled = true
+                    self.settings.terminalMode = true
+                    self.controller.expand(byHover: false)
+                    let stopAfter = Double(ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_TERMINAL_STOP"] ?? "")
+                    TerminalSession.shared.runBuildCheck(commands.split(separator: "\n").map { String($0) }, stopAfter: stopAfter)
+                }
+            }
             if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_SETTINGS"] != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.showSettings() }
             }
@@ -44,6 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }.store(in: &bag)
         settings.$showMenuBarIcon.sink { [weak self] on in
             DispatchQueue.main.async { self?.updateStatusItem(on) }
+        }.store(in: &bag)
+        settings.$terminalEnabled.dropFirst().sink { on in
+            // Switching terminal mode off in Settings stops a running command and forgets what was shown.
+            if !on { DispatchQueue.main.async { TerminalSession.shared.stop(); TerminalSession.shared.clear() } }
         }.store(in: &bag)
         settings.$lockEnabled.dropFirst().sink { on in
             if !on { DispatchQueue.main.async { LockManager.shared.isLocked = false } }

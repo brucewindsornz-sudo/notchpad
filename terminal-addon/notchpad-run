@@ -1,0 +1,163 @@
+#!/bin/sh
+# NotchPad supplies one command and keeps stdin open until it wants to stop it.
+fail() { printf 'error=%s\n' "$2" >&2; exit "$1"; }
+[ "${1-}" = 1 ] || fail 64 'unsupported protocol'
+[ "$#" -eq 4 ] || fail 64 'expected four arguments'
+case $2 in
+    login) full=no ;;
+    full) full=yes ;;
+    *) fail 64 'unsupported shell mode' ;;
+esac
+
+# Start each background job in its own process group. Dash needs a terminal
+# for this, so use the system Bash in POSIX mode if this shell cannot do it.
+set -m 2>/dev/null
+case $- in
+    *m*) ;;
+    *) [ -z "${BASH_VERSION-}" ] && exec /bin/bash --posix "$0" "$@"
+       fail 1 'could not start command job control' ;;
+esac
+
+# Keep the original stderr for control lines only. Shell job notices and
+# account lookup errors must not appear on that channel.
+exec 3>&2 2>/dev/null
+fail() { printf 'error=%s\n' "$2" >&3; exit "$1"; }
+
+name=$(id -un) || fail 1 'could not find your account'
+case $(uname -s) in
+    Darwin)
+        # Unlike dscl, this keeps paths with spaces on their key's line.
+        account=$(dscacheutil -q user -a name "$name")
+        HOME=$(printf '%s\n' "$account" | sed -n 's/^dir: //p')
+        SHELL=$(printf '%s\n' "$account" | sed -n 's/^shell: //p')
+        ;;
+    *)
+        uid=$(id -u) || fail 1 'could not find your account'
+        account=$(getent passwd "$uid")
+        HOME=$(printf '%s\n' "$account" | cut -d : -f 6)
+        SHELL=$(printf '%s\n' "$account" | cut -d : -f 7)
+        ;;
+esac
+[ -n "$HOME" ] || fail 1 'could not find your home folder'
+SHELL=${SHELL:-/bin/zsh}
+USER=${USER-$name}
+LOGNAME=${LOGNAME-$name}
+if [ -z "${LANG+x}${LC_ALL+x}" ]; then export LANG=en_US.UTF-8; fi
+TERM=dumb
+PAGER=${PAGER-cat}
+NOTCHPAD_TERMINAL=1
+export HOME SHELL USER LOGNAME TERM PAGER NOTCHPAD_TERMINAL
+
+directory=$3
+case $directory in ''|/*) ;; *) directory=./$directory ;; esac
+if [ ! -d "$directory" ] || ! cd -P "$directory"; then
+    cd -P "$HOME" || fail 1 'could not open your home folder'
+fi
+[ -f "$SHELL" ] && [ -x "$SHELL" ] || fail 1 'could not open your login shell'
+
+wide_cwd_fd=no
+case ${SHELL##*/} in
+    zsh|bash|sh|dash|ksh)
+        shell_setup=
+        cwd_fd_setup='notchpad_cwd_fd=9; '
+        if [ "$full" = yes ]; then
+            # Keep real interactive startup (Bash may print job-control
+            # notices); turn off nested job control for the typed command.
+            shell_setup='set +m; '
+            case ${SHELL##*/} in
+                bash|sh)
+                    # Bash 3.2 discards descriptors 3 through 19 at interactive
+                    # login. Other shells called sh may only support 0 through 9.
+                    wide_cwd_fd=yes
+                    cwd_fd_setup='case ${BASH_VERSION-} in 3.*) notchpad_cwd_fd=20 ;; *) notchpad_cwd_fd=9 ;; esac; '
+                    ;;
+            esac
+        fi
+        # Keep the prelude on the first line so shell errors use the input's
+        # line numbers. Append the typed code as-is, without eval or quoting it
+        # a second time. A path containing a newline cannot fit the cwd field.
+        cwd_prelude=$(printf '%s' \
+            "$shell_setup" \
+            'notchpad_report_cwd() { ' \
+            "$cwd_fd_setup" \
+            'notchpad_cwd=$(command pwd -P && command printf .) || return; ' \
+            'notchpad_cwd=${notchpad_cwd%??}; ' \
+            'notchpad_nl=$(command printf "\n."); notchpad_nl=${notchpad_nl%.}; ' \
+            'case $notchpad_cwd in *"$notchpad_nl"*) ;; ' \
+            '/*) command printf "cwd=%s\n" "$notchpad_cwd" >&"$notchpad_cwd_fd" ;; esac; ' \
+            '}; trap "notchpad_report_cwd" EXIT; ')
+        set -- -c "$cwd_prelude$4"
+        ;;
+    *)
+        # Other shells, such as fish, run the input as-is without reporting cwd.
+        set -- -c "$4"
+        ;;
+esac
+[ "$full" = no ] || set -- -i "$@"
+
+# Spare fd 4 keeps the app's input available to the watcher; the command
+# receives /dev/null instead. Close the original control fd in both jobs.
+exec 4<&0
+if [ "$wide_cwd_fd" = yes ]; then
+    # Dash cannot open fd 20 itself. Open it in Bash, then replace that
+    # process with the command shell, still in the same process group.
+    /bin/bash --posix -c 'exec 20>&9; exec "$@"' notchpad "$SHELL" -l "$@" \
+        </dev/null 2>&1 9>&3 3>&- 4<&- &
+else
+    "$SHELL" -l "$@" </dev/null 2>&1 9>&3 3>&- 4<&- &
+fi
+command_pid=$!
+signal_command() { kill -s "$1" -- "-$command_pid"; }
+(
+    while IFS= read -r ignored; do :; done
+    # After EOF, finish the ladder even if the main shell exits on INT and
+    # a descendant is still running. Before EOF, TERM cancels this watcher.
+    trap '' TERM
+    await_group_exit() {
+        ticks=0
+        while signal_command 0; do
+            [ "$ticks" -lt 10 ] || return 1
+            sleep 0.2
+            ticks=$((ticks + 1))
+        done
+    }
+    signal_command INT || exit 0
+    signal_command CONT || :
+    await_group_exit && exit 0
+    signal_command TERM || exit 0
+    signal_command CONT || :
+    await_group_exit && exit 0
+    signal_command KILL || :
+) <&4 3>&- 4<&- >/dev/null &
+watcher_pid=$!
+exec 4<&-
+
+# Some shells' wait returns when the command suspends itself. Leave it
+# suspended until the app asks to stop, and only report its actual exit.
+while :; do
+    wait "$command_pid"
+    status=$?
+    kill -0 "$command_pid" || break
+    sleep 0.1
+done
+# If it died just as wait noticed it stop, pick up the real status. A second
+# wait returns 127 if POSIX Bash had already collected the exit status.
+if [ "$status" -gt 128 ]; then
+    case $(kill -l "$status") in
+        STOP|TSTP|TTIN|TTOU)
+            wait "$command_pid"
+            final_status=$?
+            [ "$final_status" = 127 ] || status=$final_status
+            ;;
+    esac
+fi
+kill -s TERM -- "-$watcher_pid" || :
+# Reap the watcher before returning. If Stop started the ladder, it may
+# still be clearing descendants even though their original shell has gone.
+wait "$watcher_pid"
+
+# A deliberately backgrounded job can keep running, like it would in
+# Terminal. This also cannot stop jobs that leave their own process group.
+# Report the shell's completion without waiting for output EOF.
+printf 'status=%s\n' "$status" >&3
+exit 0
