@@ -132,7 +132,7 @@ struct SettingsView: View {
                     OptionLabel(title: "Remember size and position",
                                 detail: "After a restart it opens at the size you last dragged it to, in the same spot. If it was kept open, it reopens too.")
                 }
-                Text("Drag the top bar to move it anywhere. Drag the bottom-right corner to resize. Drop it near the notch to tuck it back in.")
+                Text("Drag the move button (next to the bin) or the top bar to move it anywhere. Drag the bottom-right corner to resize. Bring it back near the notch and it snaps into the centre, like a magnet.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button("Put it back in the notch") { NotchActions.dock?() }

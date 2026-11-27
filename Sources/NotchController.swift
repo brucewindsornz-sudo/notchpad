@@ -86,6 +86,13 @@ final class NotchController: ObservableObject {
 
     private var moveStartMouse: NSPoint?
     private var moveStartFrame = NSRect.zero
+    /// Where the pad would be if the notch weren't pulling on it (follows the pointer exactly).
+    private var moveFreeFrame = NSRect.zero
+    /// True while the magnet has caught the pad and it's sitting in the notch spot.
+    private var magnetLocked = false
+    /// Magnet field: inside `magnetReach` points the notch starts pulling; inside `magnetCatch` it snaps in.
+    private let magnetReach: CGFloat = 130
+    private let magnetCatch: CGFloat = 34
     private var resizeStartMouse: NSPoint?
     private var resizeStartSize = CGSize.zero
     private var resizeStartLeft: CGFloat = 0
@@ -200,34 +207,72 @@ final class NotchController: ObservableObject {
         guard let m0 = moveStartMouse else {
             moveStartMouse = m
             moveStartFrame = panel.frame
+            moveFreeFrame = panel.frame
+            magnetLocked = !showsDetached
             openedByHover = false
             leaveWork?.cancel(); leaveWork = nil
             return
         }
-        var f = moveStartFrame
-        f.origin.x += m.x - m0.x
-        f.origin.y += m.y - m0.y
+        var free = moveStartFrame
+        free.origin.x += m.x - m0.x
+        free.origin.y += m.y - m0.y
         let sf = notch.screenFrame
-        if f.maxY > sf.maxY { f.origin.y = sf.maxY - f.height }
-        panel.setFrame(f, display: true)
-        let dx = f.midX - notch.rect.midX
-        let dy = sf.maxY - f.maxY
-        let away = abs(dx) > 8 || dy > 8
+        if free.maxY > sf.maxY { free.origin.y = sf.maxY - free.height }
+        moveFreeFrame = free
+
+        // Magnet: the closer the pad gets to the notch, the harder it's pulled to the centre,
+        // until it clicks into place. Pull it a little further away to break free.
+        let home = NSPoint(x: notch.rect.midX - free.width / 2, y: sf.maxY - free.height)
+        let d = distanceFromNotch(free)
+        let wasLocked = magnetLocked
+        magnetLocked = d < (wasLocked ? magnetCatch + 22 : magnetCatch)
+        var f = free
+        if magnetLocked {
+            f.origin = home
+        } else if d < magnetReach {
+            let t = 1 - (d - magnetCatch) / (magnetReach - magnetCatch)   // 0 at the edge of the field, 1 at catch
+            let pull = t * t * 0.8
+            f.origin.x += (home.x - f.origin.x) * pull
+            f.origin.y += (home.y - f.origin.y) * pull
+        }
+        if magnetLocked != wasLocked {
+            if magnetLocked && settings.haptics {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            }
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1)
+                panel.animator().setFrame(f, display: true)
+            }
+        } else {
+            panel.setFrame(f, display: true)
+        }
+        let away = !magnetLocked
         if away != showsDetached { showsDetached = away }
+    }
+
+    /// How far the pad's top-centre is from its spot in the notch, in points.
+    private func distanceFromNotch(_ f: NSRect) -> CGFloat {
+        let dx = f.midX - notch.rect.midX
+        let dy = notch.screenFrame.maxY - f.maxY
+        return (dx * dx + dy * dy).squareRoot()
     }
 
     func endMove() {
         guard moveStartMouse != nil else { return }
         moveStartMouse = nil
-        let f = panel.frame
-        let dx = f.midX - notch.rect.midX
-        let dy = notch.screenFrame.maxY - f.maxY
-        if abs(dx) < 60 && dy < 36 {
-            dock()                    // close enough: snap back into the notch
+        let free = moveFreeFrame
+        if magnetLocked || distanceFromNotch(free) < magnetReach * 0.6 {
+            magnetLocked = false
+            debugLog("NOTCHPAD_DROP docked=true")
+            dock()                    // caught by the magnet: settle into the centre of the notch
         } else {
-            settings.offsetX = Double(dx)
-            settings.offsetY = Double(dy)
+            magnetLocked = false
+            let f = panel.frame
+            settings.offsetX = Double(f.midX - notch.rect.midX)
+            settings.offsetY = Double(notch.screenFrame.maxY - f.maxY)
             settings.detached = true
+            debugLog("NOTCHPAD_DROP docked=false")
         }
     }
 
@@ -267,7 +312,9 @@ final class NotchController: ObservableObject {
         showsDetached = false
         guard state == .expanded else { return }
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.22
+            ctx.duration = 0.28
+            // Quick pull with a soft landing, like a magnet catching metal.
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1)
             panel.animator().setFrame(panelFrame(floating: false), display: true)
         }
     }

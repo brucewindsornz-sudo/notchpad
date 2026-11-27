@@ -200,6 +200,7 @@ struct ScratchpadView: View {
                     }
                 }
                 .disabled(lock.isLocked || store.text.isEmpty)
+                MoveHandle(controller: controller, color: theme.secondary)
                 if settings.lockEnabled && !lock.isLocked {
                     iconButton("lock", help: "Lock now") {
                         if settings.clipboardClearOnLock { ClipboardGuard.shared.clearIfOurs() }
@@ -349,6 +350,55 @@ struct PadTextView: NSViewRepresentable {
             guard let tv = notification.object as? NSTextView else { return }
             parent.text = tv.string
         }
+    }
+}
+
+/// Drag this button to move the pad. Bring it back near the notch and it snaps into the centre.
+struct MoveHandle: View {
+    @ObservedObject var controller: NotchController
+    var color: Color
+    @State private var dragging = false
+    @State private var hovering = false
+
+    var body: some View {
+        Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+            .font(.system(size: 11, weight: .semibold))
+            .frame(width: 22, height: 20)
+            .foregroundColor(color)
+            .contentShape(Rectangle())
+            .help("Drag to move. Bring it back to the notch and it snaps in.")
+            .accessibilityLabel("Drag to move")
+            .onHover { inside in
+                guard inside != hovering else { return }
+                hovering = inside
+                if dragging { return }                 // the drag sorts the cursor out when it ends
+                if inside { NSCursor.openHand.push() } else { NSCursor.pop() }
+            }
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { _ in
+                    if !dragging {
+                        dragging = true
+                        if hovering { NSCursor.pop() }   // swap the open hand for a closed one
+                        NSCursor.closedHand.push()
+                    }
+                    controller.moveDrag()
+                }
+                .onEnded { _ in
+                    if dragging {
+                        dragging = false
+                        NSCursor.pop()
+                        if hovering { NSCursor.openHand.push() }
+                    }
+                    controller.endMove()
+                })
+            .background(GeometryReader { g in
+                Color.clear.onAppear {
+                    // Report this button's on-screen centre (top-left origin) for the drag test.
+                    let f = g.frame(in: .global), w = controller.panel.frame
+                    let screenTop = controller.notch.screenFrame.maxY
+                    debugLog("NOTCHPAD_MOVE_AT x=\(Int(w.minX + f.midX)) y=\(Int(screenTop - w.maxY + f.midY))")
+                }
+            })
     }
 }
 

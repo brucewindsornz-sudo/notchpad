@@ -28,8 +28,9 @@ Needs macOS 13 Ventura or later. Built for Apple Silicon and Intel.
 - Click: it expands into a scratchpad. Esc or the arrow closes it.
 - Pin it (or turn on "Keep the scratchpad open") to leave it open.
 - Control + Option + N opens/closes it from anywhere.
-- Drag the top bar to move it anywhere; drag the bottom-right corner to resize.
-  Drop it near the notch to tuck it back in. Size and position are remembered
+- Drag the move button (next to the bin) or the top bar to move it anywhere; drag the
+  bottom-right corner to resize. Bring it back near the notch and it's pulled in and
+  snaps to the centre, like a magnet. Size and position are remembered
   after a restart, and if it was pinned open it reopens on launch.
 
 ## Themes

@@ -100,6 +100,27 @@ jobs:
           pkill -x NotchPad || true; sleep 1
           cat clip.log | grep NOTCHPAD_CLEARCLIP
           [ -z "$(pbpaste)" ] && echo "OK: second click clears the clipboard" || { echo "Clipboard still has: $(pbpaste)"; exit 1; }
+      - name: Drag with the move button, then let the magnet dock it
+        run: |
+          APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> move.log &
+          sleep 5
+          read X Y < <(grep NOTCHPAD_MOVE_AT move.log | tail -1 | sed 's/.*x=\([0-9-]*\) y=\([0-9-]*\)/\1 \2/')
+          echo "Move button at $X,$Y"
+          # Drag well away from the notch: it should stay floating.
+          cliclick m:$X,$Y w:300 dd:$X,$Y w:100 dm:$((X+100)),$((Y+150)) w:100 dm:$((X+250)),$((Y+300)) w:100 du:$((X+250)),$((Y+300))
+          sleep 1
+          screencapture -x pad-moved.png || true
+          # Drag it back to just off the notch: the magnet should pull it into the centre.
+          X2=$((X+250)); Y2=$((Y+300))
+          cliclick m:$X2,$Y2 w:300 dd:$X2,$Y2 w:100 dm:$((X2-150)),$((Y2-200)) w:100 dm:$((X2-230)),$((Y2-285)) w:100 du:$((X2-230)),$((Y2-285))
+          sleep 1
+          screencapture -x pad-docked-again.png || true
+          pgrep -x NotchPad >/dev/null || { cat move.log; echo "Crashed while dragging"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
+          grep NOTCHPAD_DROP move.log
+          grep NOTCHPAD_DROP move.log | head -1 | grep -q "docked=false" && echo "OK: drag away leaves it floating" || { echo "Did not float"; exit 1; }
+          grep NOTCHPAD_DROP move.log | tail -1 | grep -q "docked=true" && echo "OK: magnet docks it near the notch" || { echo "Magnet did not dock"; exit 1; }
       - name: Load a Ghostty theme and show it in the pad and Settings
         run: |
           APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad
