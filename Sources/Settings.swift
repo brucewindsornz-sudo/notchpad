@@ -46,36 +46,6 @@ enum PadFont: String, CaseIterable, Identifiable {
     }
 }
 
-enum PadTheme: String, CaseIterable, Identifiable {
-    case notch, graphite, paper, midnight
-    var id: String { rawValue }
-    var label: String {
-        switch self {
-        case .notch: return "Notch black"
-        case .graphite: return "Graphite"
-        case .paper: return "Paper"
-        case .midnight: return "Midnight blue"
-        }
-    }
-    var background: NSColor {
-        switch self {
-        case .notch: return .black
-        case .graphite: return NSColor(calibratedRed: 0.16, green: 0.16, blue: 0.17, alpha: 1)
-        case .paper: return NSColor(calibratedRed: 0.98, green: 0.96, blue: 0.90, alpha: 1)
-        case .midnight: return NSColor(calibratedRed: 0.06, green: 0.09, blue: 0.19, alpha: 1)
-        }
-    }
-    var text: NSColor {
-        switch self {
-        case .notch: return NSColor(white: 0.95, alpha: 1)
-        case .graphite: return NSColor(white: 0.92, alpha: 1)
-        case .paper: return NSColor(calibratedRed: 0.15, green: 0.14, blue: 0.12, alpha: 1)
-        case .midnight: return NSColor(calibratedRed: 0.88, green: 0.92, blue: 1.0, alpha: 1)
-        }
-    }
-    var secondary: Color { Color(nsColor: text).opacity(0.55) }
-}
-
 enum LockAfter: Int, CaseIterable, Identifiable {
     case immediately = 0, oneMinute = 60, fiveMinutes = 300, oneHour = 3600
     var id: Int { rawValue }
@@ -120,7 +90,11 @@ final class Settings: ObservableObject {
     @Published var size: PadSize { didSet { d.set(size.rawValue, forKey: "size") } }
     @Published var font: PadFont { didSet { d.set(font.rawValue, forKey: "font") } }
     @Published var fontSize: Double { didSet { d.set(fontSize, forKey: "fontSize") } }
-    @Published var theme: PadTheme { didSet { d.set(theme.rawValue, forKey: "theme") } }
+    /// Theme used when not following light/dark mode. Saved under the old "theme" key so earlier picks carry over.
+    @Published var themeID: String { didSet { d.set(themeID, forKey: "theme") } }
+    @Published var themeFollowsSystem: Bool { didSet { d.set(themeFollowsSystem, forKey: "themeFollowsSystem") } }
+    @Published var lightThemeID: String { didSet { d.set(lightThemeID, forKey: "lightTheme") } }
+    @Published var darkThemeID: String { didSet { d.set(darkThemeID, forKey: "darkTheme") } }
     @Published var opacity: Double { didSet { d.set(opacity, forKey: "opacity") } }
     @Published var showWordCount: Bool { didSet { d.set(showWordCount, forKey: "showWordCount") } }
 
@@ -150,7 +124,7 @@ final class Settings: ObservableObject {
             "keepOpen": false, "openOnHover": false, "hoverNudge": true, "haptics": true,
             "closeOnClickOutside": true, "hotkeyEnabled": true, "showMenuBarIcon": true,
             "size": PadSize.medium.rawValue, "font": PadFont.system.rawValue, "fontSize": 14.0,
-            "theme": PadTheme.notch.rawValue, "opacity": 1.0, "showWordCount": true,
+            "theme": "notch", "themeFollowsSystem": false, "lightTheme": "paper", "darkTheme": "notch", "opacity": 1.0, "showWordCount": true,
             "hideFromCapture": true, "lockEnabled": false, "lockAfter": LockAfter.fiveMinutes.rawValue,
             "rememberLayout": true, "customWidth": 0.0, "customHeight": 0.0, "detached": false,
             "offsetX": 0.0, "offsetY": 0.0, "wasOpen": false,
@@ -166,7 +140,10 @@ final class Settings: ObservableObject {
         size = PadSize(rawValue: d.string(forKey: "size") ?? "") ?? .medium
         font = PadFont(rawValue: d.string(forKey: "font") ?? "") ?? .system
         fontSize = d.double(forKey: "fontSize")
-        theme = PadTheme(rawValue: d.string(forKey: "theme") ?? "") ?? .notch
+        themeID = d.string(forKey: "theme") ?? "notch"
+        themeFollowsSystem = d.bool(forKey: "themeFollowsSystem")
+        lightThemeID = d.string(forKey: "lightTheme") ?? "paper"
+        darkThemeID = d.string(forKey: "darkTheme") ?? "notch"
         opacity = d.double(forKey: "opacity")
         showWordCount = d.bool(forKey: "showWordCount")
         rememberLayout = d.bool(forKey: "rememberLayout")
@@ -186,7 +163,7 @@ final class Settings: ObservableObject {
 
     func resetToDefaults() {
         for key in ["keepOpen", "openOnHover", "hoverNudge", "haptics", "closeOnClickOutside", "hotkeyEnabled",
-                    "showMenuBarIcon", "size", "font", "fontSize", "theme", "opacity", "showWordCount",
+                    "showMenuBarIcon", "size", "font", "fontSize", "theme", "themeFollowsSystem", "lightTheme", "darkTheme", "opacity", "showWordCount",
                     "hideFromCapture", "lockEnabled", "lockAfter", "blurWhenAway", "autoErase", "spellCheck",
                     "rememberLayout", "customWidth", "customHeight", "detached", "offsetX", "offsetY"] {
             d.removeObject(forKey: key)
@@ -195,7 +172,8 @@ final class Settings: ObservableObject {
         keepOpen = fresh.keepOpen; openOnHover = fresh.openOnHover; hoverNudge = fresh.hoverNudge
         haptics = fresh.haptics; closeOnClickOutside = fresh.closeOnClickOutside
         hotkeyEnabled = fresh.hotkeyEnabled; showMenuBarIcon = fresh.showMenuBarIcon
-        size = fresh.size; font = fresh.font; fontSize = fresh.fontSize; theme = fresh.theme
+        size = fresh.size; font = fresh.font; fontSize = fresh.fontSize; themeID = fresh.themeID
+        themeFollowsSystem = fresh.themeFollowsSystem; lightThemeID = fresh.lightThemeID; darkThemeID = fresh.darkThemeID
         opacity = fresh.opacity; showWordCount = fresh.showWordCount; hideFromCapture = fresh.hideFromCapture
         lockEnabled = fresh.lockEnabled; lockAfter = fresh.lockAfter; blurWhenAway = fresh.blurWhenAway
         autoErase = fresh.autoErase; spellCheck = fresh.spellCheck

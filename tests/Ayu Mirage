@@ -1,0 +1,10 @@
+# Ghostty-format theme file used by the build check.
+palette = 0=#191e2a
+palette = 1=#ed8274
+palette = 4=#6dcbfa
+background = #1f2430
+foreground = #cbccc6
+cursor-color = #ffcc66
+cursor-text = #1f2430
+selection-background = #33415e
+selection-foreground = #cbccc6

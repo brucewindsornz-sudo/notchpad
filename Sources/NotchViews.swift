@@ -34,6 +34,7 @@ struct NotchShape: Shape {
 struct NotchRootView: View {
     @ObservedObject var controller: NotchController
     @ObservedObject var settings = Settings.shared
+    @ObservedObject var themes = ThemeStore.shared
 
     private var notchSize: CGSize { controller.notch.rect.size }
 
@@ -57,7 +58,7 @@ struct NotchRootView: View {
     private var expanded: Bool { controller.state == .expanded }
 
     private var fill: Color {
-        expanded ? Color(nsColor: settings.theme.background).opacity(settings.opacity) : .black
+        expanded ? Color(nsColor: themes.current.background).opacity(settings.opacity) : .black
     }
 
     var body: some View {
@@ -70,7 +71,7 @@ struct NotchRootView: View {
                 .modifier(PadShadow(on: expanded && !testNoEffects))
                 .overlay(alignment: .bottomTrailing) {
                     if expanded {
-                        ResizeGrip(controller: controller, color: settings.theme.secondary)
+                        ResizeGrip(controller: controller, color: themes.current.secondary)
                             .padding(.trailing, controller.showsDetached ? 5 : 16)
                             .padding(.bottom, 5)
                     }
@@ -97,7 +98,8 @@ struct ScratchpadView: View {
     @State private var confirmErase = false
     @State private var copied = false
 
-    private var theme: PadTheme { settings.theme }
+    @ObservedObject var themes = ThemeStore.shared
+    private var theme: PadThemeSpec { themes.current }
     /// Height of the menu bar strip beside the notch. Nothing clickable goes here: macOS's menu bar takes those clicks.
     private var menuBarHeight: CGFloat { controller.notch.rect.height }
 
@@ -114,6 +116,8 @@ struct ScratchpadView: View {
                 PadTextView(text: $store.text,
                             font: settings.font.nsFont(size: CGFloat(settings.fontSize)),
                             textColor: theme.text,
+                            accentColor: theme.accent,
+                            selectionColor: theme.selection,
                             spellCheck: settings.spellCheck,
                             focusToken: controller.focusToken)
                     .modifier(PadBlur(on: shouldBlur && !testNoEffects))
@@ -157,7 +161,7 @@ struct ScratchpadView: View {
             HStack(spacing: 2) {
                 iconButton(settings.keepOpen ? "pin.fill" : "pin",
                            help: settings.keepOpen ? "Stays open (click to stop)" : "Keep open",
-                           tint: settings.keepOpen ? .accentColor : nil) {
+                           tint: settings.keepOpen ? theme.accentColor : nil) {
                     settings.keepOpen.toggle()
                 }
                 .background(GeometryReader { g in
@@ -205,6 +209,7 @@ struct ScratchpadView: View {
             Text("Your scratchpad is locked").font(.system(size: 13, weight: .medium))
             Button("Unlock with Touch ID or password") { lock.unlock() }
                 .buttonStyle(.borderedProminent)
+                .tint(theme.accentColor)
                 .controlSize(.small)
             Spacer()
         }
@@ -230,6 +235,8 @@ struct PadTextView: NSViewRepresentable {
     @Binding var text: String
     var font: NSFont
     var textColor: NSColor
+    var accentColor: NSColor
+    var selectionColor: NSColor
     var spellCheck: Bool
     var focusToken: Int
 
@@ -276,7 +283,8 @@ struct PadTextView: NSViewRepresentable {
     private func apply(to tv: NSTextView) {
         if tv.font != font { tv.font = font }
         tv.textColor = textColor
-        tv.insertionPointColor = textColor
+        tv.insertionPointColor = accentColor
+        tv.selectedTextAttributes = [.backgroundColor: selectionColor, .foregroundColor: textColor]
         tv.typingAttributes = [.font: font, .foregroundColor: textColor]
         if tv.isContinuousSpellCheckingEnabled != spellCheck { tv.isContinuousSpellCheckingEnabled = spellCheck }
     }

@@ -17,6 +17,8 @@ enum NotchActions { static var dock: (() -> Void)? }
 
 struct SettingsView: View {
     @ObservedObject var s = Settings.shared
+    @ObservedObject var themes = ThemeStore.shared
+    @State private var themeFilter = 0   // 0 all, 1 dark, 2 light
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var confirmErase = false
     @State private var confirmReset = false
@@ -53,6 +55,42 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Theme") {
+                Toggle(isOn: $s.themeFollowsSystem) {
+                    OptionLabel(title: "Match light and dark mode",
+                                detail: "Uses one theme when your Mac is in Light mode and another in Dark mode, like Ghostty's light/dark themes.")
+                }
+                if s.themeFollowsSystem {
+                    Text("Light mode: \(themes.theme(id: s.lightThemeID).name)   ·   Dark mode: \(themes.theme(id: s.darkThemeID).name)\nClick a light theme to use it in Light mode, or a dark theme for Dark mode.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Picker("Show", selection: $themeFilter) {
+                    Text("All").tag(0); Text("Dark").tag(1); Text("Light").tag(2)
+                }
+                .pickerStyle(.segmented)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 138), spacing: 12)], spacing: 12) {
+                    ForEach(filteredThemes) { t in
+                        ThemeTile(theme: t, selected: isSelected(t), badge: badge(for: t))
+                            .onTapGesture { themes.choose(t) }
+                            .contextMenu {
+                                Button("Use this theme") { themes.choose(t) }
+                                if t.isCustom { Button("Delete theme", role: .destructive) { themes.deleteCustom(t) } }
+                            }
+                    }
+                }
+                .padding(.vertical, 4)
+                HStack {
+                    Button("Import theme files…") { themes.presentImportPanel() }
+                    Button("Open Themes folder") { NSWorkspace.shared.open(ThemeStore.folder) }
+                    Button("Reload") { themes.loadCustom() }
+                }
+                if let msg = themes.lastImportMessage {
+                    Text(msg).font(.caption).foregroundStyle(.secondary)
+                }
+                Text("Theme files use Ghostty's format (background, foreground, cursor-color, selection-background), so any Ghostty theme can be imported as it is. Files you put in the Themes folder show up after Reload. Right-click your own themes to delete them.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section("Look") {
                 Picker("Size", selection: Binding(get: { s.size }, set: { new in
                     s.size = new
@@ -67,9 +105,6 @@ struct SettingsView: View {
                             Button("Use preset") { s.customWidth = 0; s.customHeight = 0 }
                         }
                     }
-                }
-                Picker("Colour", selection: $s.theme) {
-                    ForEach(PadTheme.allCases) { Text($0.label).tag($0) }
                 }
                 Picker("Font", selection: $s.font) {
                     ForEach(PadFont.allCases) { Text($0.label).tag($0) }
@@ -170,6 +205,66 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 680)
+        .frame(width: 560, height: 760)
+        .onAppear { themes.loadCustom() }
+    }
+
+    private var filteredThemes: [PadThemeSpec] {
+        themes.all.filter { themeFilter == 0 || (themeFilter == 1 ? $0.isDark : !$0.isDark) }
+    }
+
+    private func isSelected(_ t: PadThemeSpec) -> Bool {
+        s.themeFollowsSystem ? (t.id == s.lightThemeID || t.id == s.darkThemeID) : t.id == s.themeID
+    }
+
+    private func badge(for t: PadThemeSpec) -> String? {
+        if t.isCustom && !isSelected(t) { return "Yours" }
+        guard s.themeFollowsSystem else { return nil }
+        if t.id == s.lightThemeID && t.id == s.darkThemeID { return "Both" }
+        if t.id == s.lightThemeID { return "Light" }
+        if t.id == s.darkThemeID { return "Dark" }
+        return nil
+    }
+}
+
+/// A small preview card: the pad's colours, a notch, sample text, a selection and the cursor.
+struct ThemeTile: View {
+    let theme: PadThemeSpec
+    let selected: Bool
+    let badge: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ZStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color(nsColor: theme.background))
+                Capsule().fill(Color.black).frame(width: 34, height: 9).offset(y: -2)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Groceries").fontWeight(.semibold)
+                    HStack(spacing: 0) {
+                        Text("milk, ").foregroundColor(Color(nsColor: theme.text).opacity(0.8))
+                        Text("eggs").padding(.horizontal, 1).background(Color(nsColor: theme.selection))
+                        Rectangle().fill(theme.accentColor).frame(width: 1.5, height: 11).padding(.leading, 1)
+                    }
+                }
+                .font(.system(size: 10))
+                .foregroundColor(Color(nsColor: theme.text))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 9)
+                .padding(.top, 16)
+                Circle().fill(theme.accentColor).frame(width: 6, height: 6)
+                    .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, 8).padding(.top, 6)
+            }
+            .frame(height: 62)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(selected ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: selected ? 2.5 : 1))
+            HStack(spacing: 4) {
+                Text(theme.name).font(.caption).lineLimit(1)
+                Spacer(minLength: 0)
+                if let badge = badge { Text(badge).font(.caption2).foregroundStyle(.secondary) }
+            }
+        }
+        .contentShape(Rectangle())
+        .help(theme.name)
     }
 }

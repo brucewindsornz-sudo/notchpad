@@ -26,6 +26,20 @@ jobs:
           cat app.log
           pgrep -x NotchPad >/dev/null && echo "still running" || echo "NOT RUNNING"
           grep -q "NOTCHPAD_PIN=true" app.log && echo "PIN CLICK WORKED" || { echo "PIN CLICK DID NOTHING"; exit 1; }
+      - name: Themes - load a Ghostty theme file and show the gallery
+        run: |
+          C=~/Library/Containers/com.newzeebuild.notchpad/Data
+          mkdir -p "$C/Library/Application Support/NotchPad/Themes"
+          cp "tests/Ayu Mirage" "$C/Library/Application Support/NotchPad/Themes/"
+          defaults write "$C/Library/Preferences/com.newzeebuild.notchpad" theme "custom:Ayu Mirage"
+          defaults write "$C/Library/Preferences/com.newzeebuild.notchpad" keepOpen -bool true
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_DEBUG_SETTINGS=1 NOTCHPAD_NO_EFFECTS=1 NOTCHPAD_ALLOW_CAPTURE=1 \
+            build/NotchPad.app/Contents/MacOS/NotchPad 2> themes.log &
+          sleep 7
+          screencapture -x themes.png || true
+          cat themes.log
+          pkill -x NotchPad || true
+          grep -q 'NOTCHPAD_THEMES custom=\["Ayu Mirage"\]' themes.log && echo "GHOSTTY THEME LOADED" || { echo "THEME NOT LOADED"; exit 1; }
       - name: Crash report
         if: always()
         run: |

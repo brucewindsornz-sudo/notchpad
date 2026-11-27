@@ -28,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.restoreOnLaunch()
         if notchPadDebug {
             settings.$keepOpen.dropFirst().sink { on in debugLog("NOTCHPAD_PIN=\(on)") }.store(in: &bag)
+            if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_SETTINGS"] != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.showSettings() }
+            }
             if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_OPEN"] != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.controller.expand(byHover: false) }
             }
@@ -75,6 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pin = menu.addItem(withTitle: "Keep Open", action: #selector(togglePin), keyEquivalent: "")
         pin.target = self
         menu.addItem(withTitle: "Put Back in Notch", action: #selector(dockPad), keyEquivalent: "").target = self
+        let themeItem = menu.addItem(withTitle: "Theme", action: nil, keyEquivalent: "")
+        themeItem.submenu = NSMenu(title: "Theme")
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit NotchPad", action: #selector(quit), keyEquivalent: "q").target = self
@@ -109,12 +114,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func togglePad() { controller.toggle() }
     @objc private func togglePin() { settings.keepOpen.toggle() }
     @objc private func dockPad() { controller.dock() }
+    @objc private func pickTheme(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        ThemeStore.shared.choose(ThemeStore.shared.theme(id: id))
+    }
+    @objc private func importThemes() { ThemeStore.shared.presentImportPanel() }
     @objc private func openSettings() { showSettings() }
     @objc private func quit() { NSApp.terminate(nil) }
 
     func showSettings() {
         if settingsWindow == nil {
-            let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 680),
+            let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 760),
                                styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
             win.title = "NotchPad Settings"
             win.contentViewController = NSHostingController(rootView: SettingsView())
@@ -130,6 +140,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         menu.item(withTitle: "Keep Open")?.state = settings.keepOpen ? .on : .off
+        if let sub = menu.item(withTitle: "Theme")?.submenu {
+            sub.removeAllItems()
+            let store = ThemeStore.shared
+            let current = store.current.id
+            for t in store.all {
+                let item = sub.addItem(withTitle: t.name, action: #selector(pickTheme(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = t.id
+                item.state = t.id == current ? .on : .off
+            }
+            sub.addItem(.separator())
+            sub.addItem(withTitle: "Import Theme Files…", action: #selector(importThemes), keyEquivalent: "").target = self
+        }
     }
 }
 

@@ -4,5 +4,7 @@
 <dict>
   <!-- App Sandbox with NO network entitlement: macOS itself blocks all internet access. -->
   <key>com.apple.security.app-sandbox</key><true/>
+  <!-- Read only the theme files you pick in the Import window. -->
+  <key>com.apple.security.files.user-selected.read-only</key><true/>
 </dict>
 </plist>
