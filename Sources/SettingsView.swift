@@ -209,7 +209,7 @@ struct SettingsView: View {
                 Toggle(isOn: Binding(get: { launchAtLogin }, set: { on in
                     do {
                         if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-                    } catch { NSLog("NotchPad: login item change failed: \(error.localizedDescription)") }
+                    } catch { /* silent: no system log entries */ }
                     launchAtLogin = SMAppService.mainApp.status == .enabled
                 })) {
                     OptionLabel(title: "Start when I log in", detail: "Works best once NotchPad is in your Applications folder.")

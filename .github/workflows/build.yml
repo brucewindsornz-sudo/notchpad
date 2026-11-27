@@ -13,6 +13,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build universal app
         run: ./build.sh --universal
+      - name: Clipboard test
+        run: |
+          swiftc -o build/cliptest Sources/Clipboard.swift Sources/Settings.swift tests/clipboard/main.swift
+          build/cliptest
       - name: Check the window sits at the very top of the screen
         run: |
           NOTCHPAD_DEBUG=1 build/NotchPad.app/Contents/MacOS/NotchPad 2> frame.log &

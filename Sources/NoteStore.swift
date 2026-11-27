@@ -70,7 +70,7 @@ final class NoteStore: ObservableObject {
             try combined.write(to: url, options: [.atomic])
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch {
-            NSLog("NotchPad: could not save note: \(error.localizedDescription)")
+            // Deliberately silent: nothing is written to the system log, so other apps can't learn NotchPad is running.
         }
     }
 
@@ -122,7 +122,6 @@ final class NoteStore: ObservableObject {
             return SymmetricKey(data: data)
         }
         // Fallback: keep the key in a private file next to the note (still never leaves this Mac).
-        NSLog("NotchPad: Keychain unavailable (\(status)); using local key file")
         let keyURL = folder.appendingPathComponent("key.bin")
         if let data = try? Data(contentsOf: keyURL), data.count == 32 { return SymmetricKey(data: data) }
         try? keyData.write(to: keyURL, options: [.atomic])

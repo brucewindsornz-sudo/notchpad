@@ -132,6 +132,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             win.title = "NotchPad Settings"
             win.contentViewController = NSHostingController(rootView: SettingsView())
             win.isReleasedWhenClosed = false
+            // Same as the pad: keep the settings window out of screenshots, screen sharing and recorders.
+            win.sharingType = settings.hideFromCapture ? .none : .readOnly
+            settings.$hideFromCapture.dropFirst().sink { [weak win] on in
+                DispatchQueue.main.async { win?.sharingType = on ? .none : .readOnly }
+            }.store(in: &bag)
             win.center()
             settingsWindow = win
         }
