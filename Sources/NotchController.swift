@@ -272,7 +272,8 @@ final class NotchController: ObservableObject {
     }
 
     private func applyPrivacy() {
-        panel.sharingType = settings.hideFromCapture ? .none : .readOnly
+        let testCapture = ProcessInfo.processInfo.environment["NOTCHPAD_ALLOW_CAPTURE"] != nil   // build checks only
+        panel.sharingType = settings.hideFromCapture && !testCapture ? .none : .readOnly
     }
 
     // MARK: Mouse

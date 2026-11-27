@@ -67,7 +67,7 @@ struct NotchRootView: View {
                        floating: expanded && controller.showsDetached)
                 .fill(fill)
                 .frame(width: shapeSize.width, height: shapeSize.height)
-                .shadow(color: .black.opacity(expanded ? 0.35 : 0), radius: 14, y: 6)
+                .modifier(PadShadow(on: expanded && !testNoEffects))
                 .overlay(alignment: .bottomTrailing) {
                     if expanded {
                         ResizeGrip(controller: controller, color: settings.theme.secondary)
@@ -98,11 +98,16 @@ struct ScratchpadView: View {
     @State private var copied = false
 
     private var theme: PadTheme { settings.theme }
-    private var headerHeight: CGFloat { max(controller.notch.rect.height, 28) }
+    /// Height of the menu bar strip beside the notch. Nothing clickable goes here: macOS's menu bar takes those clicks.
+    private var menuBarHeight: CGFloat { controller.notch.rect.height }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            if !controller.showsDetached {
+                // Sits in the menu bar row, either side of the camera. Kept empty on purpose.
+                Color.clear.frame(height: menuBarHeight)
+            }
+            toolbar
             if lock.isLocked {
                 lockedView
             } else {
@@ -111,7 +116,7 @@ struct ScratchpadView: View {
                             textColor: theme.text,
                             spellCheck: settings.spellCheck,
                             focusToken: controller.focusToken)
-                    .blur(radius: shouldBlur ? 9 : 0)
+                    .modifier(PadBlur(on: shouldBlur && !testNoEffects))
                     .animation(.easeInOut(duration: 0.2), value: shouldBlur)
                 if settings.showWordCount { footer }
             }
@@ -121,7 +126,8 @@ struct ScratchpadView: View {
 
     private var shouldBlur: Bool { settings.blurWhenAway && !controller.mouseInside }
 
-    private var header: some View {
+    /// Buttons row, just below the menu bar. The empty middle is the drag handle.
+    private var toolbar: some View {
         HStack(spacing: 4) {
             HStack(spacing: 2) {
                 iconButton(copied ? "checkmark" : "doc.on.doc", help: "Copy everything") {
@@ -145,11 +151,8 @@ struct ScratchpadView: View {
                     iconButton("lock", help: "Lock now") { lock.lock() }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            if !controller.showsDetached {
-                Color.clear.frame(width: controller.notch.rect.width + 4, height: 1)
-            }
+            Spacer(minLength: 8)
 
             HStack(spacing: 2) {
                 iconButton(settings.keepOpen ? "pin.fill" : "pin",
@@ -171,9 +174,9 @@ struct ScratchpadView: View {
                 iconButton("gearshape", help: "Settings") { controller.openSettings() }
                 iconButton("chevron.up", help: "Close (Esc)") { controller.collapse() }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(height: headerHeight)
+        .padding(.top, controller.showsDetached ? 6 : 2)
+        .frame(height: 30)
         .contentShape(Rectangle())
         .help("Drag to move")
         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .global)
@@ -311,5 +314,23 @@ struct ResizeGrip: View {
         .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { _ in controller.resizeDrag() }
             .onEnded { _ in controller.endResize() })
+    }
+}
+
+/// Set by the GitHub build checks: their virtual Macs have no graphics card, and SwiftUI's
+/// shadow/blur effects crash without one. Never set in normal use.
+let testNoEffects = ProcessInfo.processInfo.environment["NOTCHPAD_NO_EFFECTS"] != nil
+
+struct PadShadow: ViewModifier {
+    var on: Bool
+    func body(content: Content) -> some View {
+        if on { content.shadow(color: .black.opacity(0.35), radius: 14, y: 6) } else { content }
+    }
+}
+
+struct PadBlur: ViewModifier {
+    var on: Bool
+    func body(content: Content) -> some View {
+        if on { content.blur(radius: 9) } else { content }
     }
 }
