@@ -161,13 +161,15 @@ struct FlightScene {
     let toPicture: Picture
     let fromCells: CloseCells
     let toCells: CloseCells
+    let virtualNotch: Bool
 
     static func distance(_ from: CGRect, _ to: CGRect) -> Double {
         hypot(Double(to.midX - from.midX), Double(to.midY - from.midY))
     }
 
     init(effect: FlightEffect, theme: PadThemeSpec, speed: Double, size: CGSize,
-         from: CGRect, to: CGRect, notch: CGRect, fromPicture: Picture, toPicture: Picture, seed: UInt32) {
+         from: CGRect, to: CGRect, notch: CGRect, fromPicture: Picture, toPicture: Picture, seed: UInt32,
+         virtualNotch: Bool = false) {
         let renderer = effect.renderer
         self.effect = effect
         self.renderer = renderer
@@ -186,6 +188,7 @@ struct FlightScene {
         self.toPicture = toPicture
         self.fromCells = CloseScene.makeCells(from: fromPicture.image, pad: from)
         self.toCells = CloseScene.makeCells(from: toPicture.image, pad: to)
+        self.virtualNotch = virtualNotch
     }
 
     func frame(t: Double, fromImage: GraphicsContext.ResolvedImage, toImage: GraphicsContext.ResolvedImage) -> FlightFrame {
@@ -205,7 +208,7 @@ struct FlightScene {
               let last = CloseScene.mock(effect: .matrix, theme: theme, padSize: padSize) else { return nil }
         return FlightScene(effect: effect, theme: theme, speed: 1, size: size, from: from, to: to, notch: notch,
                            fromPicture: (first.picture, first.pictureScale), toPicture: (last.picture, last.pictureScale),
-                           seed: seed)
+                           seed: seed, virtualNotch: true)
     }
 }
 
@@ -216,19 +219,31 @@ struct FlightEffectCanvas: View {
     let t: Double
     var fit = false
     var classicPreview = false
+    var visible: CGRect? = nil
+    var countLiveFrames = false
 
     var body: some View {
         Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, viewSize in
-            flightDebugDraws += 1
+            if notchPadDebug && countLiveFrames { flightDebugDraws += 1 }
             var c = context
-            if fit, scene.size.width > 0, scene.size.height > 0 {
-                let k: CGFloat = min(viewSize.width / scene.size.width, viewSize.height / scene.size.height)
-                c.translateBy(x: (viewSize.width - scene.size.width * k) / 2, y: (viewSize.height - scene.size.height * k) / 2)
+            let area = visible ?? CGRect(origin: .zero, size: scene.size)
+            if fit, area.width > 0, area.height > 0 {
+                let k: CGFloat = min(viewSize.width / area.width, viewSize.height / area.height)
+                c.translateBy(x: (viewSize.width - area.width * k) / 2, y: (viewSize.height - area.height * k) / 2)
                 c.scaleBy(x: k, y: k)
+                c.translateBy(x: -area.minX, y: -area.minY)
             }
             let first = context.resolve(Image(decorative: scene.fromPicture.image, scale: scene.fromPicture.scale))
             let last = context.resolve(Image(decorative: scene.toPicture.image, scale: scene.toPicture.scale))
             let frame = scene.frame(t: t, fromImage: first, toImage: last)
+            if scene.virtualNotch && frame.t > 0 && frame.t < 1 {
+                // The landing spot on Macs without a camera housing. Ease it in and out so
+                // both endpoint pictures still match their real windows, even with a translucent pad.
+                let alpha = smoothstep(0, 0.12, frame.t) * (1 - smoothstep(0.88, 1, frame.t))
+                let pill = scene.notch.insetBy(dx: -6, dy: 0)
+                let path = NotchShape(topRadius: 6, bottomRadius: 9).path(in: pill)
+                c.fill(path, with: .color(.black.opacity(alpha)))
+            }
             if frame.t <= 0 {
                 frame.drawFrom(c)
             } else if frame.t >= 1 {
@@ -244,7 +259,7 @@ struct FlightEffectCanvas: View {
     }
 }
 
-/// Temporary example shared by the eight placeholder renderers.
+/// A simple glide for the Classic preview and for placeholder renderers.
 func drawSampleFlight(_ f: FlightFrame, _ ctx: GraphicsContext, bowScale: Double = 1) {
     let t = smoothstep(0, 1, f.t)
     let bow = sin(.pi * t) * min(100, f.distance * 0.25) * bowScale
@@ -291,10 +306,10 @@ private struct FlightOverlayStage: View {
                 }
             case .fly(let run):
                 if let t = run.frozen {
-                    FlightEffectCanvas(scene: run.scene, t: t)
+                    FlightEffectCanvas(scene: run.scene, t: t, countLiveFrames: true)
                 } else {
                     TimelineView(.animation) { timeline in
-                        FlightEffectCanvas(scene: run.scene, t: run.progress(at: timeline.date))
+                        FlightEffectCanvas(scene: run.scene, t: run.progress(at: timeline.date), countLiveFrames: true)
                     }
                 }
             case nil:
@@ -444,7 +459,7 @@ enum FlightDebugFrames {
 
     static func writeIfAsked() {
         guard notchPadDebug, let raw = environment["NOTCHPAD_DEBUG_FLIGHT_FRAMES"],
-              let n = Int(raw), n >= 2, n <= 120 else { return }
+              let n = Int(raw), n >= 1, n <= 120 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             Task { @MainActor in write(n) }
         }
@@ -465,7 +480,7 @@ enum FlightDebugFrames {
             if let only = only, !only.contains(effect.rawValue) { continue }
             guard let scene = FlightScene.mock(effect: effect, theme: theme, layout: layout) else { continue }
             for i in 0..<n {
-                let t = Double(i) / Double(n - 1)
+                let t = n == 1 ? 0.5 : Double(i) / Double(n - 1)
                 let name = String(format: "flight-%@-%03d.png", effect.rawValue, i)
                 if let data = png(of: scene, t: t), (try? data.write(to: dir.appendingPathComponent(name))) != nil {
                     count += 1

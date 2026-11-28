@@ -13,13 +13,16 @@ struct FlightAnimationSettingsSection: View {
     init() {}
 
     var body: some View {
-        Section("Boomerang animation") {
-            Text("Choose how a floating pad flies back to the notch. Point at a tile to watch it, or click to choose it.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .id("flightAnimation")
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 138), spacing: 12, alignment: .top)], spacing: 12) {
+        Section {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Boomerang animation").font(.headline)
+                Text("Choose how a floating pad flies back to the notch. Point at a tile to watch it, or click to choose it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .id("flightAnimation")
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 138), spacing: 12, alignment: .top)], spacing: 10) {
                 let matched = FlightEffect.resolve(setting: "theme", theme: themes.current) ?? .boomerang
                 tile("theme", title: "Match theme", detail: "Now: \(matched.label).",
                      symbol: "paintpalette", effect: matched)
@@ -62,7 +65,7 @@ struct FlightAnimationSettingsSection: View {
                 FlightTilePreview(effect: effect, theme: themes.current, playing: playing, classic: key == "classic")
                     .id(clicked == key ? "\(key)-\(clickCount)" : key)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 80)
+                    .frame(height: 67)
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: selected ? 2.5 : 1))
@@ -145,7 +148,8 @@ private struct FlightTilePreview: View {
     }
 
     private func frame(_ scene: FlightScene, t: Double) -> some View {
-        FlightEffectCanvas(scene: scene, t: t, fit: true, classicPreview: classic)
+        FlightEffectCanvas(scene: scene, t: t, fit: true, classicPreview: classic,
+                           visible: CGRect(x: 240, y: 0, width: 940, height: 650))
     }
 
     private func rebuild() {

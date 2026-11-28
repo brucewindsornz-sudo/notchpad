@@ -153,6 +153,7 @@ final class NotchController: ObservableObject {
         }) { monitors.append(l) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] e in
             guard let self = self else { return e }
+            if e.window === self.panel { FlightEffectPlayer.shared.cancel() }
             if e.keyCode == 53, self.state == .expanded { self.collapse(); return nil } // Esc
             if e.modifierFlags.contains(.command), e.charactersIgnoringModifiers == "q" { NSApp.terminate(nil); return nil }
             if e.window === self.panel, self.editingShortcut(e) { return nil }
@@ -273,14 +274,14 @@ final class NotchController: ObservableObject {
     }
 
     /// Panel frame for the docked (notch) spot, or the remembered floating spot.
-    private func panelFrame(floating: Bool) -> NSRect {
+    private func panelFrame(floating: Bool, previewOffset: CGPoint? = nil) -> NSRect {
         let s = padSize
         let sf = notch.screenFrame
         if floating {
             let w = s.width + margin * 2
             let h = s.height + margin
-            var midX = notch.rect.midX + CGFloat(settings.offsetX)
-            var top = sf.maxY - CGFloat(settings.offsetY)
+            var midX = notch.rect.midX + (previewOffset?.x ?? CGFloat(settings.offsetX))
+            var top = sf.maxY - (previewOffset?.y ?? CGFloat(settings.offsetY))
             // Keep the whole pad on screen, even if the display changed since last time.
             midX = min(max(midX, sf.minX + s.width / 2), sf.maxX - s.width / 2)
             // ...and never let its toolbar sit in the menu bar strip, where macOS takes the clicks
@@ -585,7 +586,11 @@ final class NotchController: ObservableObject {
     func dock() { dock(animated: true) }
 
     /// The boomerang button: sends the floating pad back into the notch.
-    func boomerang() { dock(animated: true, boomerang: true) }
+    func boomerang() {
+        if FlightEffectPlayer.shared.isPlaying { FlightEffectPlayer.shared.cancel() }
+        guard state == .expanded, showsDetached else { return }
+        dock(animated: true, boomerang: true)
+    }
 
     func dock(animated: Bool, boomerang: Bool = false) {
         FlightEffectPlayer.shared.cancel()
@@ -690,7 +695,8 @@ final class NotchController: ObservableObject {
                 return
             }
             let scene = FlightScene(effect: effect, theme: theme, speed: speed, size: route.bounds.size, from: route.from,
-                                    to: route.to, notch: route.notch, fromPicture: first, toPicture: last, seed: seed)
+                                    to: route.to, notch: route.notch, fromPicture: first, toPicture: last, seed: seed,
+                                    virtualNotch: !self.notch.hasNotch)
             player.play(scene, token: token)
         }
         return true
@@ -708,11 +714,13 @@ final class NotchController: ObservableObject {
     func previewFlight() {
         FlightEffectPlayer.shared.cancel()
         if state != .expanded { expand(byHover: false) }
+        openedByHover = false
+        leaveWork?.cancel(); leaveWork = nil
         if !showsDetached {
-            settings.offsetX = min(240, Double(notch.screenFrame.width) * 0.18)
-            settings.offsetY = min(280, Double(notch.screenFrame.height) * 0.38)
-            settings.detached = true
-            layout()
+            let offset = CGPoint(x: min(240, notch.screenFrame.width * 0.18),
+                                 y: min(280, notch.screenFrame.height * 0.38))
+            showsDetached = true
+            panel.setFrame(panelFrame(floating: true, previewOffset: offset), display: true)
         }
         let previewFrame = panel.frame
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak self] in
