@@ -477,7 +477,7 @@ struct PadTextView: NSViewRepresentable {
         /// Notes up to this long are coloured whole; longer ones only around what is on screen.
         static let wholeNoteLimit = 20_000
         /// Lines in one sweep of a gradient theme's body colours.
-        static let gradientLines: Double = 14
+        static let gradientLines: Double = 8
 
         var parent: PadTextView
         var representedText: String?
