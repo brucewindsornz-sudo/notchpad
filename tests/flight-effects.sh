@@ -33,10 +33,15 @@ stop() {
 
 cleanup() {
   stop
-  local i
+  local i value
   for ((i=0; i<${#keys[@]}; i++)); do
-    if [ -n "${saved[$i]}" ]; then
-      defaults write "$P" "${keys[$i]}" "-${types[$i]}" "${saved[$i]}" 2>/dev/null || true
+    value=${saved[$i]}
+    if [ -n "$value" ]; then
+      if [ "${types[$i]}" = bool ]; then
+        case "$value" in 0) value=false ;; 1) value=true ;; esac
+      fi
+      defaults write "$P" "${keys[$i]}" "-${types[$i]}" "$value" >/dev/null 2>&1 ||
+        echo "Could not restore the NotchPad preference '${keys[$i]}'." >&2
     else
       defaults delete "$P" "${keys[$i]}" 2>/dev/null || true
     fi
