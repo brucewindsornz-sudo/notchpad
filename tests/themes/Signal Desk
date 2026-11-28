@@ -10,3 +10,6 @@ notchpad-line-spacing = 3
 notchpad-letter-spacing = 0.3
 notchpad-glow = #62d1f2
 notchpad-close = teleport
+notchpad-backdrop = grid
+notchpad-backdrop-color = #173448
+notchpad-edge-glow = #62d1f2
