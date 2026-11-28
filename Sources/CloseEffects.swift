@@ -579,28 +579,34 @@ final class CloseEffectPlayer {
         guard notchPadDebug, let raw = CloseEffectPlayer.environment["NOTCHPAD_DEBUG_CLOSE_FRAMES"],
               let n = Int(raw), n >= 2, n <= 120 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("close-frames", isDirectory: true)
-            try? FileManager.default.removeItem(at: dir)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let theme = ThemeStore.shared.current
-            let floating = CloseEffectPlayer.environment["NOTCHPAD_DEBUG_CLOSE_FLOATING"] != nil
-            var count = 0
-            for effect in CloseEffect.allCases {
-                guard let scene = CloseScene.mock(effect: effect, theme: theme, padSize: CGSize(width: 500, height: 290),
-                                                  floating: floating) else { continue }
-                for i in 0..<n {
-                    let t: Double = Double(i) / Double(n - 1)
-                    if let data = CloseEffectPlayer.png(of: scene, t: t) {
-                        let name = String(format: "%@-%03d.png", effect.rawValue, i)
-                        if (try? data.write(to: dir.appendingPathComponent(name))) != nil { count += 1 }
-                    }
-                }
-            }
-            debugLog("NOTCHPAD_CLOSE_FRAMES dir=\(dir.path) count=\(count)")
+            Task { @MainActor in CloseEffectPlayer.writeDebugFrames(n) }
         }
     }
 
+    @MainActor
+    private static func writeDebugFrames(_ n: Int) {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("close-frames", isDirectory: true)
+        try? FileManager.default.removeItem(at: dir)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let theme = ThemeStore.shared.current
+        let floating = CloseEffectPlayer.environment["NOTCHPAD_DEBUG_CLOSE_FLOATING"] != nil
+        var count = 0
+        for effect in CloseEffect.allCases {
+            guard let scene = CloseScene.mock(effect: effect, theme: theme, padSize: CGSize(width: 500, height: 290),
+                                              floating: floating) else { continue }
+            for i in 0..<n {
+                let t: Double = Double(i) / Double(n - 1)
+                if let data = CloseEffectPlayer.png(of: scene, t: t) {
+                    let name = String(format: "%@-%03d.png", effect.rawValue, i)
+                    if (try? data.write(to: dir.appendingPathComponent(name))) != nil { count += 1 }
+                }
+            }
+        }
+        debugLog("NOTCHPAD_CLOSE_FRAMES dir=\(dir.path) count=\(count)")
+    }
+
     /// One frame over a plain desktop-like backdrop, as PNG data.
+    @MainActor
     private static func png(of scene: CloseScene, t: Double) -> Data? {
         let backdrop = LinearGradient(colors: [Color(.sRGB, red: 0.11, green: 0.13, blue: 0.2, opacity: 1),
                                                Color(.sRGB, red: 0.23, green: 0.17, blue: 0.25, opacity: 1)],
