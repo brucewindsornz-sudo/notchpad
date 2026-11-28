@@ -351,6 +351,11 @@ struct ScratchpadView: View {
 }
 
 /// Plain-text editor with full control over spell check, fonts and colours.
+///
+/// Uses TextKit 1 on purpose, built by hand rather than with `NSTextView.scrollableTextView()` (which gives
+/// TextKit 2 on recent macOS): theme "ink" is drawn with the layout manager's temporary attributes, which colour
+/// the text on screen without ever touching what is stored, saved, copied, undone or counted. That behaves the
+/// same on macOS 13 through 26.
 struct PadTextView: NSViewRepresentable {
     @Binding var text: String
     var theme: PadThemeSpec
@@ -358,6 +363,8 @@ struct PadTextView: NSViewRepresentable {
     var fontSize: CGFloat
     var spellCheck: Bool
     var focusToken: Int
+    /// Build checks only: colour the text whatever the setting says.
+    var colourOverride: Bool? = nil
 
     struct TextStyle: Equatable {
         let theme: PadThemeSpec
@@ -368,29 +375,52 @@ struct PadTextView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSTextView.scrollableTextView()
+        let scroll = PadTextView.makeScrollView(coordinator: context.coordinator)
+        if let tv = scroll.documentView as? NSTextView {
+            apply(to: tv, coordinator: context.coordinator)
+        }
+        if notchPadDebug { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { PadTextView.runInkSelfTest() } }
+        return scroll
+    }
+
+    static func makeScrollView(coordinator: Coordinator) -> NSScrollView {
+        let storage = NSTextStorage()
+        let layout = NSLayoutManager()
+        storage.addLayoutManager(layout)
+        let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        container.widthTracksTextView = true
+        layout.addTextContainer(container)
+        let tv = NSTextView(frame: .zero, textContainer: container)
+        tv.minSize = .zero
+        tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        tv.autoresizingMask = [.width]
+
+        let scroll = NSScrollView()
+        scroll.documentView = tv
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = false
         scroll.autohidesScrollers = true
         scroll.scrollerStyle = .overlay
         scroll.borderType = .noBorder
-        if let tv = scroll.documentView as? NSTextView {
-            tv.delegate = context.coordinator
-            tv.drawsBackground = false
-            tv.isRichText = false
-            tv.importsGraphics = false
-            tv.allowsUndo = true
-            tv.usesFindBar = true
-            tv.isAutomaticQuoteSubstitutionEnabled = false
-            tv.isAutomaticDashSubstitutionEnabled = false
-            tv.isAutomaticTextReplacementEnabled = false
-            tv.isAutomaticSpellingCorrectionEnabled = false
-            tv.isAutomaticTextCompletionEnabled = false
-            tv.isGrammarCheckingEnabled = false
-            tv.textContainerInset = NSSize(width: 4, height: 6)
-            tv.textStorage?.delegate = context.coordinator
-            apply(to: tv, coordinator: context.coordinator)
-        }
+
+        tv.delegate = coordinator
+        tv.drawsBackground = false
+        tv.isRichText = false
+        tv.importsGraphics = false
+        tv.allowsUndo = true
+        tv.usesFindBar = true
+        tv.isAutomaticQuoteSubstitutionEnabled = false
+        tv.isAutomaticDashSubstitutionEnabled = false
+        tv.isAutomaticTextReplacementEnabled = false
+        tv.isAutomaticSpellingCorrectionEnabled = false
+        tv.isAutomaticTextCompletionEnabled = false
+        tv.isGrammarCheckingEnabled = false
+        tv.textContainerInset = NSSize(width: 4, height: 6)
+        storage.delegate = coordinator
+        coordinator.attach(tv, scroll: scroll, storage: storage)
         return scroll
     }
 
@@ -432,22 +462,70 @@ struct PadTextView: NSViewRepresentable {
             tv.typingAttributes = coordinator.attributes
         }
         if tv.isContinuousSpellCheckingEnabled != spellCheck { tv.isContinuousSpellCheckingEnabled = spellCheck }
+        // Ink follows the theme and the "Colourful text" setting (this view is redrawn when settings change).
+        let wanted: ThemeInk? = (colourOverride ?? Settings.shared.colourText) ? theme.ink : nil
+        if styleChanged || replaceText || coordinator.ink != wanted {
+            coordinator.ink = wanted
+            coordinator.refreshInk(force: true)
+        }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {
         private static let styleKeys: [NSAttributedString.Key] = [.font, .foregroundColor, .paragraphStyle, .kern, .shadow]
+        /// The only attributes ink sets. All are temporary (drawing only), never in the text storage.
+        static let inkKeys: [NSAttributedString.Key] = [.foregroundColor, .strikethroughStyle, .strikethroughColor]
+        /// Notes up to this long are coloured whole; longer ones only around what is on screen.
+        static let wholeNoteLimit = 20_000
+        /// Lines in one sweep of a gradient theme's body colours.
+        static let gradientLines: Double = 14
+
         var parent: PadTextView
         var representedText: String?
         var style: TextStyle?
         var attributes: [NSAttributedString.Key: Any] = [:]
         var lastFocus = -1
+        var ink: ThemeInk?
+
+        /// The hand-built TextKit 1 stack: the storage owns the layout manager, so it is kept here.
+        private var storage: NSTextStorage?
+        private weak var textView: NSTextView?
+        private var observers: [NSObjectProtocol] = []
+        private var inkShown = false
+        private var inkedRange = NSRange(location: NSNotFound, length: 0)
+        private var editCount = 0
+        private var inkedEditCount = -1
+        private var lastWidth: CGFloat = -1
+        private(set) var lastCounts: [ThemeInk.Kind: Int] = [:]
+
         init(_ parent: PadTextView) { self.parent = parent }
+
+        deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
+
+        func attach(_ tv: NSTextView, scroll: NSScrollView, storage: NSTextStorage) {
+            self.storage = storage
+            textView = tv
+            let centre = NotificationCenter.default
+            scroll.contentView.postsBoundsChangedNotifications = true
+            observers.append(centre.addObserver(forName: NSView.boundsDidChangeNotification, object: scroll.contentView,
+                                                queue: .main) { [weak self] _ in self?.refreshInk() })
+            tv.postsFrameChangedNotifications = true
+            observers.append(centre.addObserver(forName: NSView.frameDidChangeNotification, object: tv,
+                                                queue: .main) { [weak self, weak tv] _ in
+                // A new width rewraps lines, which moves gradient colours and what is on screen.
+                guard let self, let tv, tv.frame.width != self.lastWidth else { return }
+                self.lastWidth = tv.frame.width
+                self.refreshInk(force: true)
+            })
+        }
+
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
             let updated = tv.string
             representedText = updated
             tv.typingAttributes = attributes
             parent.text = updated
+            editCount += 1
+            refreshInk()
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -480,6 +558,181 @@ struct PadTextView: NSViewRepresentable {
             }
             for range in mismatched { applyStyle(to: textStorage, range: range) }
         }
+
+        // MARK: Ink
+
+        /// Colours the note's parts (or, for a long note, the lines on and near the screen).
+        /// Cheap to call often: scrolling within what is already coloured does nothing.
+        func refreshInk(force: Bool = false) {
+            guard let tv = textView, let layout = tv.layoutManager, let container = tv.textContainer,
+                  let storage = tv.textStorage else { return }
+            let length = storage.length
+            guard let ink, length > 0 else {
+                if inkShown {
+                    let all = NSRange(location: 0, length: length)
+                    for key in Self.inkKeys { layout.removeTemporaryAttribute(key, forCharacterRange: all) }
+                    inkShown = false
+                    inkedRange = NSRange(location: NSNotFound, length: 0)
+                    lastCounts = [:]
+                }
+                return
+            }
+            // Leave text being composed (Japanese, Chinese, accents) alone; it is coloured once committed.
+            if tv.hasMarkedText() { return }
+            let text: NSString = storage.mutableString
+            let range: NSRange
+            if length <= Self.wholeNoteLimit {
+                range = NSRange(location: 0, length: length)
+            } else {
+                let visible = tv.visibleRect
+                let origin = tv.textContainerOrigin
+                // One screen above and below, so short scrolls are already coloured.
+                let area = NSRect(x: visible.minX - origin.x, y: visible.minY - origin.y - visible.height,
+                                  width: visible.width, height: visible.height * 3)
+                let glyphs = layout.glyphRange(forBoundingRect: area, in: container)
+                let chars = layout.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+                range = text.lineRange(for: chars)
+            }
+            let unchanged = inkShown && inkedEditCount == editCount && inkedRange.location != NSNotFound
+                && NSIntersectionRange(inkedRange, range).length == range.length
+            if !force && unchanged { return }
+
+            let started = CFAbsoluteTimeGetCurrent()
+            let spans = InkScanner.scan(text, in: range, title: InkScanner.titleLine(in: text))
+            for key in Self.inkKeys { layout.removeTemporaryAttribute(key, forCharacterRange: range) }
+            let font = attributes[.font] as? NSFont ?? NSFont.systemFont(ofSize: 13)
+            let lineHeight: CGFloat = max(1, layout.defaultLineHeight(for: font))
+            var counts: [ThemeInk.Kind: Int] = [:]
+            for span in spans where span.range.length > 0 && NSMaxRange(span.range) <= length {
+                let colour: NSColor?
+                if span.kind == .body {
+                    guard !ink.body.isEmpty else { continue }
+                    let glyph = layout.glyphIndexForCharacter(at: span.range.location)
+                    let y: CGFloat = layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minY
+                    let phase: Double = Double(y / lineHeight) / Self.gradientLines
+                    colour = ink.bodyColor(phase: phase)
+                } else {
+                    colour = ink.color(for: span.kind)
+                }
+                guard let colour else { continue }
+                var paint: [NSAttributedString.Key: Any] = [.foregroundColor: colour]
+                if span.kind == .done {
+                    paint[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+                    paint[.strikethroughColor] = colour
+                }
+                layout.addTemporaryAttributes(paint, forCharacterRange: span.range)
+                counts[span.kind, default: 0] += 1
+            }
+            inkShown = true
+            inkedRange = range
+            inkedEditCount = editCount
+            lastCounts = counts
+            if notchPadDebug {
+                let ms: Double = (CFAbsoluteTimeGetCurrent() - started) * 1000
+                let summary = ThemeInk.Kind.allCases.compactMap { kind in counts[kind].map { "\(kind.rawValue)=\($0)" } }
+                debugLog("NOTCHPAD_INK chars=\(length) coloured=\(range.length) \(summary.joined(separator: " ")) ms=\(String(format: "%.2f", ms))")
+            }
+        }
+    }
+
+    // MARK: Build check
+
+    private static var selfTestRan = false
+
+    /// Debug builds only: an off-screen editor is put through typing, undo, redo, every theme and the
+    /// colour switch, checking each time that the stored note is exactly what was typed and holds no ink.
+    static func runInkSelfTest() {
+        guard notchPadDebug, !selfTestRan else { return }
+        selfTestRan = true
+        let sample = "Weekend plan\n- Call the plumber about the tap\n- [x] Book the ferry for Friday 9:30\n"
+            + "- [ ] milk, eggs, $12.50 of coffee\n# Deck ideas\n1. wider steps, 2 seats\n> measure twice\n"
+            + "\"quoted\" and `code` https://example.com/deck #home @sam\nSHOPPING\nTo do:\n"
+        let themes = ThemeStore.shared.all
+        var model = PadTextView(text: .constant(sample), theme: themes[0], font: .theme, fontSize: 14,
+                                spellCheck: true, focusToken: 0, colourOverride: true)
+        let coordinator = model.makeCoordinator()
+        let scroll = makeScrollView(coordinator: coordinator)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 320), styleMask: [.borderless],
+                              backing: .buffered, defer: true)
+        window.isReleasedWhenClosed = false
+        window.contentView = scroll
+        guard let tv = scroll.documentView as? NSTextView, let layout = tv.layoutManager,
+              let storage = tv.textStorage else { debugLog("NOTCHPAD_INK_SELFTEST failed=no-text-view"); return }
+        var failures: [String] = []
+        func ink(at index: Int) -> NSColor? {
+            layout.temporaryAttribute(.foregroundColor, atCharacterIndex: index, effectiveRange: nil) as? NSColor
+        }
+        func storedIsPlain(_ base: NSColor, _ label: String) {
+            var leaked = false
+            storage.enumerateAttribute(.foregroundColor, in: NSRange(location: 0, length: storage.length), options: []) { value, _, _ in
+                if (value as? NSColor) != base { leaked = true }
+            }
+            if leaked { failures.append("stored-colour:" + label) }
+            if storage.attribute(.strikethroughStyle, at: 0, effectiveRange: nil) != nil { failures.append("stored-strike:" + label) }
+        }
+
+        // Every theme: same characters, base colour only in storage, title painted with that theme's ink.
+        for theme in themes {
+            model.theme = theme
+            model.apply(to: tv, coordinator: coordinator)
+            if storage.string != sample { failures.append("text:" + theme.id) }
+            storedIsPlain(theme.text, theme.id)
+            if ink(at: 0) != theme.ink.title { failures.append("title-ink:" + theme.id) }
+        }
+        let counts = coordinator.lastCounts
+        let summary = ThemeInk.Kind.allCases.compactMap { kind in counts[kind].map { "\(kind.rawValue)=\($0)" } }
+
+        // Typing, undo and redo.
+        let typed = "\n- paid $45 at 9:30 #done @kim"
+        var typing = "ok"
+        if let undo = tv.undoManager {
+            undo.groupsByEvent = false
+            undo.beginUndoGrouping()
+            tv.setSelectedRange(NSRange(location: storage.length, length: 0))
+            tv.insertText(typed, replacementRange: tv.selectedRange())
+            undo.endUndoGrouping()
+            if storage.string != sample + typed || coordinator.representedText != sample + typed { typing = "typed-mismatch" }
+            let money = (storage.string as NSString).range(of: "$45")
+            if money.location == NSNotFound || ink(at: money.location) != model.theme.ink.number { typing = "typed-not-inked" }
+            undo.undo()
+            if storage.string != sample { typing = "undo-mismatch" }
+            undo.redo()
+            if storage.string != sample + typed { typing = "redo-mismatch" }
+            undo.undo()
+            if storage.string != sample { typing = "undo2-mismatch" }
+            storedIsPlain(model.theme.text, "after-undo")
+        } else {
+            typing = "no-undo-manager"
+        }
+        if typing != "ok" { failures.append(typing) }
+
+        // Switching ink off removes every colour.
+        model.colourOverride = false
+        model._text = .constant(storage.string)
+        model.apply(to: tv, coordinator: coordinator)
+        if ink(at: 0) != nil { failures.append("off-still-inked") }
+        model.colourOverride = true
+        model.apply(to: tv, coordinator: coordinator)
+
+        // A long note: colour only around the screen, and time one keystroke in the middle.
+        var long = ""
+        while long.utf16.count < 100_000 { long += sample }
+        model._text = .constant(long)
+        let loadStart = CFAbsoluteTimeGetCurrent()
+        model.apply(to: tv, coordinator: coordinator)
+        let loadMs: Double = (CFAbsoluteTimeGetCurrent() - loadStart) * 1000
+        let middle = NSRange(location: storage.length / 2, length: 0)
+        tv.scrollRangeToVisible(middle)
+        tv.setSelectedRange(middle)
+        let keyStart = CFAbsoluteTimeGetCurrent()
+        tv.insertText("x", replacementRange: middle)
+        let keyMs: Double = (CFAbsoluteTimeGetCurrent() - keyStart) * 1000
+        if storage.string.utf16.count != long.utf16.count + 1 { failures.append("long-typing") }
+        window.contentView = nil
+        window.close()
+        debugLog("NOTCHPAD_INK_SELFTEST themes=\(themes.count) \(summary.joined(separator: " ")) typing=\(typing) "
+                 + "long-load-ms=\(String(format: "%.1f", loadMs)) long-key-ms=\(String(format: "%.2f", keyMs)) "
+                 + "failures=\(failures.isEmpty ? "none" : failures.joined(separator: ","))")
     }
 }
 
