@@ -229,6 +229,9 @@ sweeps the same way is **not yet checked on the Mac**: check one Trial frame bef
 | `Filter.hueRotation(a)` (radians) | `.hueRotation(.radians(a))` |
 | `Filter.colorInvert(1)` / `Filter.colorInvert(x)` | `.colorInvert(1)` / `.colorInvert(x)` (write the amount: the Swift default is not checked) |
 | `Filter.colorMultiply(c)` | `.colorMultiply(c.color)` |
+| `Filter.shadow(c, r, x, y, { shadowOnly: true })` | `.shadow(color: c.color, radius: r, x: x, y: y, options: .shadowOnly)` (draws only the shadow) |
+| `Filter.alphaThreshold(lo, hi, c)` | `.alphaThreshold(min: lo, max: hi, color: c.color)` (alpha within lo…hi becomes `c`, anything else clear; write all three: Swift's defaults are `max: 1`, `color: .black`) |
+| `Filter.colorMatrix([r1,r2,r3,r4,r5, g1,…,g5, b1,…,b5, a1,…,a5])` | `var m = ColorMatrix(); m.r1 = …; …` then `.colorMatrix(m)` (20 numbers, row by row; the 5th of each row is an offset; the fields are `Float`, so write `Float(x)` for a `Double`) |
 
 **Blur radius.** Checked on the Mac frames: SwiftUI's `blur(radius: 6)` profile matches CSS `blur(6px)`
 (the radius is the Gaussian's standard deviation) to within 1 to 3 levels out of 255. Shadow radius uses the
@@ -236,9 +239,12 @@ same rule (shadow is not yet checked on the Mac). Filter sizes scale with the co
 that SwiftUI does the same under `scaleBy` is not yet checked: avoid blurring inside a scaled context, or check
 a Trial frame.
 
-Not available in fxlab (exist in SwiftUI): `alphaThreshold`, `colorMatrix`, `luminanceToAlpha`,
-`alphaMultiply`, shader filters (macOS 14+ anyway), `projectionTransform`, shadow options such as
-`.shadowOnly`. Ask `/root/fxlab_builder` if you need one.
+Metaballs and goo: draw blurred blobs inside a `drawLayer` on a context that has
+`Filter.alphaThreshold(0.5, 1, colour)`; the blobs merge where their blurred edges overlap.
+
+Not available in fxlab (exist in SwiftUI): `luminanceToAlpha`, `alphaMultiply`, shader filters (macOS 14+
+anyway), `projectionTransform`, shadow options other than `.shadowOnly`, and the `blendMode:` argument of
+`.shadow`. Ask `/root/fxlab_builder` if you need one.
 
 ### Text
 

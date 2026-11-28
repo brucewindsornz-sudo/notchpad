@@ -424,7 +424,8 @@ export const Shading = {
 
 export const Filter = {
   blur: (radius) => ({ kind: 'blur', radius }),
-  shadow: (color, radius, x = 0, y = 0) => ({ kind: 'shadow', color, radius, x, y }),
+  /** opts.shadowOnly: Swift `options: .shadowOnly` (draw only the shadow, not the shape). */
+  shadow: (color, radius, x = 0, y = 0, opts = {}) => ({ kind: 'shadow', color, radius, x, y, shadowOnly: !!opts.shadowOnly }),
   brightness: (amount) => ({ kind: 'brightness', amount }),
   contrast: (amount) => ({ kind: 'contrast', amount }),
   saturation: (amount) => ({ kind: 'saturation', amount }),
@@ -433,6 +434,10 @@ export const Filter = {
   colorInvert: (amount = 1) => ({ kind: 'colorInvert', amount }),
   /** Swift `.colorMultiply(c.color)`. */
   colorMultiply: (color) => ({ kind: 'colorMultiply', color }),
+  /** Swift `.alphaThreshold(min: a, max: b, color: c.color)`: alpha within [min, max] → the colour, else clear. */
+  alphaThreshold: (min, max = 1, color = RGBA.black) => ({ kind: 'alphaThreshold', min, max, color }),
+  /** Swift `.colorMatrix(m)`: 20 numbers, rows r, g, b, a; each row: ×r ×g ×b ×a +offset (offset in 0…1). */
+  colorMatrix: (m) => { if (m.length !== 20) throw new Error('colorMatrix needs 20 numbers'); return { kind: 'colorMatrix', m }; },
 };
 
 const BLEND = {
@@ -487,34 +492,55 @@ const STATS = { fill: 0, stroke: 0, drawPad: 0, text: 0, layer: 0, blurred: 0 };
 export function resetStats() { for (const k in STATS) STATS[k] = 0; }
 export function getStats() { return { ...STATS }; }
 
-let svgFilterCount = 0;
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(name, attrs = {}, kids = []) {
+  const e = document.createElementNS(SVGNS, name);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  for (const k of kids) e.appendChild(k);
+  return e;
+}
+/** Builds (once) an SVG filter for things CSS filters cannot do, and returns its url(#id). */
 function svgFilter(kind, value) {
-  // Swift's brightness adds `amount` to every channel; CSS brightness() multiplies, so use an SVG filter.
-  // colorMultiply likewise has no CSS function.
-  const key = `fx-${kind}-${JSON.stringify(value)}`;
+  const key = 'fx-' + kind + '-' + JSON.stringify(value).replace(/[^a-zA-Z0-9.-]/g, '_');
   if (typeof document === 'undefined') return '';
-  if (!document.getElementById(key)) {
-    let svg = document.getElementById('fx-svg-defs');
-    if (!svg) {
-      svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.id = 'fx-svg-defs'; svg.setAttribute('width', '0'); svg.setAttribute('height', '0');
-      svg.style.position = 'absolute';
-      document.body.appendChild(svg);
-    }
-    const f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-    f.id = key; f.setAttribute('color-interpolation-filters', 'sRGB');
-    const ct = document.createElementNS('http://www.w3.org/2000/svg', 'feComponentTransfer');
-    const chans = kind === 'brightness' ? { R: [1, value], G: [1, value], B: [1, value] }
-      : { R: [value.r, 0], G: [value.g, 0], B: [value.b, 0], A: [value.a, 0] };
-    for (const [ch, [slope, intercept]] of Object.entries(chans)) {
-      const fn = document.createElementNS('http://www.w3.org/2000/svg', 'feFunc' + ch);
-      fn.setAttribute('type', 'linear'); fn.setAttribute('slope', String(slope)); fn.setAttribute('intercept', String(intercept));
-      ct.appendChild(fn);
-    }
-    f.appendChild(ct); svg.appendChild(f); svgFilterCount++;
+  if (document.getElementById(key)) return `url(#${key})`;
+  let svg = document.getElementById('fx-svg-defs');
+  if (!svg) {
+    svg = svgEl('svg', { id: 'fx-svg-defs', width: 0, height: 0 });
+    svg.style.position = 'absolute';
+    document.body.appendChild(svg);
   }
+  const lin = (ch, slope, intercept) => svgEl('feFunc' + ch, { type: 'linear', slope, intercept });
+  let kids;
+  if (kind === 'brightness') {
+    // Swift's brightness adds `amount` to every channel; CSS brightness() multiplies.
+    kids = [svgEl('feComponentTransfer', {}, [lin('R', 1, value), lin('G', 1, value), lin('B', 1, value)])];
+  } else if (kind === 'mul') {
+    kids = [svgEl('feComponentTransfer', {}, [lin('R', value.r, 0), lin('G', value.g, 0), lin('B', value.b, 0), lin('A', value.a, 0)])];
+  } else if (kind === 'matrix') {
+    kids = [svgEl('feColorMatrix', { type: 'matrix', values: value.join(' ') })];
+  } else if (kind === 'threshold') {
+    // Alpha inside [min, max] becomes the colour (fully opaque colour times its own alpha), anything else clear.
+    const n = 256, table = [];
+    for (let i = 0; i < n; i++) { const a = i / (n - 1); table.push(a >= value.min && a <= value.max ? 1 : 0); }
+    kids = [
+      svgEl('feComponentTransfer', { in: 'SourceGraphic', result: 'mask' }, [svgEl('feFuncA', { type: 'discrete', tableValues: table.join(' ') })]),
+      svgEl('feFlood', { 'flood-color': `rgb(${value.c[0]},${value.c[1]},${value.c[2]})`, 'flood-opacity': value.c[3], result: 'fill' }),
+      svgEl('feComposite', { in: 'fill', in2: 'mask', operator: 'in' }),
+    ];
+  } else if (kind === 'shadowOnly') {
+    kids = [
+      svgEl('feGaussianBlur', { in: 'SourceAlpha', stdDeviation: value.r, result: 'b' }),
+      svgEl('feOffset', { in: 'b', dx: value.x, dy: value.y, result: 'o' }),
+      svgEl('feFlood', { 'flood-color': `rgb(${value.c[0]},${value.c[1]},${value.c[2]})`, 'flood-opacity': value.c[3], result: 'f' }),
+      svgEl('feComposite', { in: 'f', in2: 'o', operator: 'in' }),
+    ];
+  }
+  svg.appendChild(svgEl('filter', { id: key, 'color-interpolation-filters': 'sRGB', x: '-50%', y: '-50%', width: '200%', height: '200%',
+    filterUnits: 'objectBoundingBox' }, kids));
   return `url(#${key})`;
 }
+const c255 = (c) => [Math.round(clamp01(c.r) * 255), Math.round(clamp01(c.g) * 255), Math.round(clamp01(c.b) * 255), clamp01(c.a)];
 
 function matScale(m) { return Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)); }
 function toDOM(m) { return new DOMMatrix([m.a, m.b, m.c, m.d, m.tx, m.ty]); }
@@ -586,7 +612,12 @@ export class Ctx {
         // SwiftUI's blur radius is treated as the Gaussian's standard deviation, the same as CSS blur().
         // Checked against the Mac: see PORTING.md, "Blur radius".
         case 'blur': parts.push(`blur(${Math.max(0, f.radius * scale)}px)`); break;
-        case 'shadow': parts.push(`drop-shadow(${f.x * scale}px ${f.y * scale}px ${f.radius * scale}px ${f.color.css()})`); break;
+        case 'shadow':
+          if (f.shadowOnly) parts.push(svgFilter('shadowOnly', { r: f.radius * scale, x: f.x * scale, y: f.y * scale, c: c255(f.color) }));
+          else parts.push(`drop-shadow(${f.x * scale}px ${f.y * scale}px ${f.radius * scale}px ${f.color.css()})`);
+          break;
+        case 'alphaThreshold': parts.push(svgFilter('threshold', { min: f.min, max: f.max, c: c255(f.color) })); break;
+        case 'colorMatrix': parts.push(svgFilter('matrix', f.m)); break;
         case 'brightness': parts.push(svgFilter('brightness', f.amount)); break;
         case 'contrast': parts.push(`contrast(${f.amount})`); break;
         case 'saturation': parts.push(`saturate(${f.amount})`); break;
