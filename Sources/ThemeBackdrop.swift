@@ -227,8 +227,8 @@ extension ThemeBackdrop {
             base: .linear(stops: [stop(0, "#fdf9ee"), stop(0.6, "#faf4e3"), stop(1, "#f2e8cf")],
                           start: .topLeading, end: .bottomTrailing),
             pattern: .none, patternTint: hex("#e8782a"), patternSecondary: hex("#26241f"),
-            vignette: Vignette(color: hex("#b8a682"), strength: 0.15),
-            edge: Edge(hairlineColor: hex("#7c6f55"), hairlineOpacity: 0.20, hairlineWidth: 1, topSpecular: 0.35)
+            vignette: Vignette(color: hex("#b8a682"), strength: 0.16),
+            edge: Edge(hairlineColor: hex("#6e6045"), hairlineOpacity: 0.28, hairlineWidth: 1, topSpecular: 0.35)
         ),
         "catppuccin-mocha": ThemeBackdrop(
             base: .linear(stops: [stop(0, "#26263a"), stop(0.55, "#1e1e2e"), stop(1, "#161624")],
@@ -242,8 +242,8 @@ extension ThemeBackdrop {
             base: .linear(stops: [stop(0, "#f5f7fb"), stop(0.55, "#eff1f5"), stop(1, "#e4e7f0")],
                           start: .topLeading, end: .bottomTrailing),
             pattern: .none, patternTint: hex("#8839ef"), patternSecondary: hex("#4c4f69"),
-            vignette: Vignette(color: hex("#8c8fa1"), strength: 0.12),
-            edge: Edge(hairlineColor: hex("#7c7f93"), hairlineOpacity: 0.22, hairlineWidth: 1, topSpecular: 0.35)
+            vignette: Vignette(color: hex("#8c8fa1"), strength: 0.14),
+            edge: Edge(hairlineColor: hex("#5c5f77"), hairlineOpacity: 0.28, hairlineWidth: 1, topSpecular: 0.35)
         ),
         "dracula": ThemeBackdrop(
             base: .linear(stops: [stop(0, "#313344"), stop(0.55, "#282a36"), stop(1, "#1e1f29")],
@@ -281,7 +281,7 @@ extension ThemeBackdrop {
                           start: .topLeading, end: .bottomTrailing),
             pattern: .none, patternTint: hex("#d65d0e"), patternSecondary: hex("#3c3836"),
             vignette: Vignette(color: hex("#b5a375"), strength: 0.16),
-            edge: Edge(hairlineColor: hex("#7c6f64"), hairlineOpacity: 0.22, hairlineWidth: 1, topSpecular: 0.30)
+            edge: Edge(hairlineColor: hex("#665c54"), hairlineOpacity: 0.28, hairlineWidth: 1, topSpecular: 0.30)
         ),
         "solarized-dark": ThemeBackdrop(
             base: .linear(stops: [stop(0, "#053745"), stop(0.55, "#002b36"), stop(1, "#001f27")],
@@ -294,8 +294,8 @@ extension ThemeBackdrop {
             base: .linear(stops: [stop(0, "#fff9ea"), stop(0.55, "#fdf6e3"), stop(1, "#f3e9ce")],
                           start: .topLeading, end: .bottomTrailing),
             pattern: .none, patternTint: hex("#268bd2"), patternSecondary: hex("#586e75"),
-            vignette: Vignette(color: hex("#c2b89d"), strength: 0.15),
-            edge: Edge(hairlineColor: hex("#839496"), hairlineOpacity: 0.24, hairlineWidth: 1, topSpecular: 0.30)
+            vignette: Vignette(color: hex("#c2b89d"), strength: 0.16),
+            edge: Edge(hairlineColor: hex("#657b83"), hairlineOpacity: 0.28, hairlineWidth: 1, topSpecular: 0.30)
         ),
         "rose-pine": ThemeBackdrop(
             base: .linear(stops: [stop(0, "#242033"), stop(0.55, "#191724"), stop(1, "#12101b")],
@@ -309,8 +309,8 @@ extension ThemeBackdrop {
             base: .linear(stops: [stop(0, "#fdf8f3"), stop(0.55, "#faf4ed"), stop(1, "#efe5db")],
                           start: .topLeading, end: .bottomTrailing),
             pattern: .none, patternTint: hex("#d7827e"), patternSecondary: hex("#575279"),
-            vignette: Vignette(color: hex("#c4b2a8"), strength: 0.14),
-            edge: Edge(hairlineColor: hex("#9893a5"), hairlineOpacity: 0.22, hairlineWidth: 1, topSpecular: 0.35)
+            vignette: Vignette(color: hex("#c4b2a8"), strength: 0.15),
+            edge: Edge(hairlineColor: hex("#797593"), hairlineOpacity: 0.28, hairlineWidth: 1, topSpecular: 0.35)
         ),
         "one-dark": ThemeBackdrop(
             base: .linear(stops: [stop(0, "#313640"), stop(0.55, "#282c34"), stop(1, "#1e2128")],
@@ -351,8 +351,8 @@ extension ThemeBackdrop {
             base: .linear(stops: [stop(0, "#ffffff"), stop(0.65, "#fafbfd"), stop(1, "#f1f4f9")],
                           start: .topLeading, end: .bottomTrailing),
             pattern: .none, patternTint: hex("#0969da"), patternSecondary: hex("#1f2328"),
-            vignette: Vignette(color: hex("#b6c2cf"), strength: 0.10),
-            edge: Edge(hairlineColor: hex("#6e7781"), hairlineOpacity: 0.22, hairlineWidth: 1, topSpecular: 0.40)
+            vignette: Vignette(color: hex("#b6c2cf"), strength: 0.12),
+            edge: Edge(hairlineColor: hex("#57606a"), hairlineOpacity: 0.28, hairlineWidth: 1, topSpecular: 0.40)
         ),
 
         // MARK: Signature themes (distinct, atmospheric, legibility-first)
@@ -413,19 +413,19 @@ extension ThemeBackdrop {
                        glowColor: hex("#0a1410"), glowOpacity: 0.25, glowWidth: 4, topSpecular: 0.04)
         ),
         "ember-typewriter": ThemeBackdrop(
-            base: .radial(stops: [stop(0, "#fff7e6"), stop(0.62, "#f8e8c8"), stop(1, "#e6c99b")],
-                          center: UnitPoint(x: 0.45, y: 0.42), startFraction: 0.08, endFraction: 0.98),
-            pattern: .parchment, patternTint: hex("#7c4621"), patternSecondary: hex("#c94a1c"),
-            vignette: Vignette(color: hex("#592910"), strength: 0.36),
-            edge: Edge(hairlineColor: hex("#7a3b1a"), hairlineOpacity: 0.34, hairlineWidth: 1,
-                       glowColor: hex("#c84b1a"), glowOpacity: 0.14, glowWidth: 5, topSpecular: 0.20)
+            base: .radial(stops: [stop(0, "#fff8e8"), stop(0.58, "#f7e5c4"), stop(1, "#dfbc87")],
+                          center: UnitPoint(x: 0.42, y: 0.40), startFraction: 0.08, endFraction: 0.96),
+            pattern: .parchment, patternTint: hex("#6e3c19"), patternSecondary: hex("#c94a1c"),
+            vignette: Vignette(color: hex("#4a1e0a"), strength: 0.48),
+            edge: Edge(hairlineColor: hex("#632b10"), hairlineOpacity: 0.42, hairlineWidth: 1,
+                       glowColor: hex("#b83d14"), glowOpacity: 0.20, glowWidth: 6, topSpecular: 0.18)
         ),
         "field-notes": ThemeBackdrop(
             base: .linear(stops: [stop(0, "#fdf6e4"), stop(0.6, "#faf0d7"), stop(1, "#f2e3bf")],
                           start: .topLeading, end: .bottomTrailing),
             pattern: .ruled, patternTint: hex("#5a87a6"), patternSecondary: hex("#c95a4e"),
             vignette: Vignette(color: hex("#bfa87a"), strength: 0.18),
-            edge: Edge(hairlineColor: hex("#8a714a"), hairlineOpacity: 0.28, hairlineWidth: 1, topSpecular: 0.28)
+            edge: Edge(hairlineColor: hex("#735c38"), hairlineOpacity: 0.32, hairlineWidth: 1, topSpecular: 0.28)
         ),
         "blueprint": ThemeBackdrop(
             base: .linear(stops: [stop(0, "#123456"), stop(0.55, "#0e2640"), stop(1, "#08192c")],
@@ -447,8 +447,8 @@ extension ThemeBackdrop {
             base: .linear(stops: [stop(0, "#fbfaf4"), stop(0.6, "#f7f5ec"), stop(1, "#edeae0")],
                           start: .top, end: .bottom),
             pattern: .newsprint, patternTint: hex("#3b3a34"), patternSecondary: hex("#71402e"),
-            vignette: Vignette(color: hex("#b5b0a0"), strength: 0.18),
-            edge: Edge(hairlineColor: hex("#3a3832"), hairlineOpacity: 0.24, hairlineWidth: 1, topSpecular: 0.25)
+            vignette: Vignette(color: hex("#b5b0a0"), strength: 0.20),
+            edge: Edge(hairlineColor: hex("#32302a"), hairlineOpacity: 0.30, hairlineWidth: 1, topSpecular: 0.25)
         ),
         "synthwave": ThemeBackdrop(
             base: .linear(stops: [stop(0, "#110722"), stop(0.42, "#220f3c"), stop(0.68, "#3e1649"), stop(1, "#140826")],
@@ -768,69 +768,84 @@ private enum ThemeBackdropCanvas {
         }
     }
 
-    // 3. Storm: layered dark thunderhead clouds, faint rain, rare distant sheet lightning.
+    // 3. Storm: dramatic layered thunderhead clouds, slanted rain, subtle distant lightning.
     private static func drawStorm(spec: ThemeBackdrop, in ctx: inout GraphicsContext,
                                   size: CGSize, time: Double, isMini: Bool) {
         let tint = Color(nsColor: spec.patternTint)
         let flashColor = Color(nsColor: spec.patternSecondary)
+        let darkCloud = Color(nsColor: NSColor(hex: "#060913")!)
         let w = Double(size.width)
         let h = Double(size.height)
 
-        // Seamless stretched cloud billows (circle scaled in context so gradient always hits 0 at edge)
-        let puffs: Int = isMini ? 5 : 9
+        // Moody thunderhead bank: dark brooding undersides + silver-lit upper billow rims
+        let puffs: Int = isMini ? 6 : 11
         for i in 0..<puffs {
-            let drift: Double = (time * (3.0 + hash01(i * 11) * 4.0)).truncatingRemainder(dividingBy: w + 180)
-            let baseX: Double = (hash01(i * 19 + 3) * (w + 180) + drift).truncatingRemainder(dividingBy: w + 180) - 90
-            let isTop: Bool = (i % 2 == 0)
-            let baseY: Double = isTop ? (h * (0.08 + hash01(i * 7) * 0.22)) : (h * (0.74 + hash01(i * 9) * 0.22))
-            let r: Double = min(w, h) * (0.28 + hash01(i * 29) * 0.22)
+            let drift: Double = (time * (2.6 + hash01(i * 11) * 3.5)).truncatingRemainder(dividingBy: w + 200)
+            let baseX: Double = (hash01(i * 19 + 3) * (w + 200) + drift).truncatingRemainder(dividingBy: w + 200) - 100
+            let isTop: Bool = (i % 3 != 2)
+            let baseY: Double = isTop ? (h * (0.04 + hash01(i * 7) * 0.24)) : (h * (0.76 + hash01(i * 9) * 0.20))
+            let r: Double = min(w, h) * (0.28 + hash01(i * 29) * 0.24)
+            let isDarkUnder: Bool = (i % 2 == 1)
             let cloudGrad = Gradient(stops: [
-                .init(color: tint.opacity(isTop ? 0.11 : 0.08), location: 0.0),
-                .init(color: tint.opacity(0.04), location: 0.55),
-                .init(color: tint.opacity(0.0), location: 1.0)
+                .init(color: (isDarkUnder ? darkCloud : tint).opacity(isDarkUnder ? 0.36 : 0.16), location: 0.0),
+                .init(color: (isDarkUnder ? darkCloud : tint).opacity(isDarkUnder ? 0.15 : 0.06), location: 0.55),
+                .init(color: (isDarkUnder ? darkCloud : tint).opacity(0.0), location: 1.0)
             ])
             var g = ctx
             g.translateBy(x: baseX, y: baseY)
-            g.scaleBy(x: 1.7, y: 0.72)
+            g.scaleBy(x: 1.85, y: 0.68)
             g.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: r * 2, height: r * 2)),
                    with: .radialGradient(cloudGrad, center: .zero, startRadius: 1, endRadius: r))
         }
 
-        // Faint slanted rain streaks
-        let drops: Int = isMini ? 8 : 20
+        // Slanted rain streaks
+        let drops: Int = isMini ? 10 : 28
         for i in 0..<drops {
             let rx: Double = hash01(i * 37 + 5) * w
             let speed: Double = 36.0 + hash01(i * 13) * 28.0
             let ry: Double = (hash01(i * 23 + 2) * h + time * speed).truncatingRemainder(dividingBy: h + 24) - 12
-            let len: Double = isMini ? 7 : 15
+            let len: Double = (isMini ? 7.0 : 14.0) + hash01(i * 7) * (isMini ? 4.0 : 10.0)
             var p = Path()
             p.move(to: CGPoint(x: rx, y: ry))
-            p.addLine(to: CGPoint(x: rx - len * 0.25, y: ry + len))
-            ctx.stroke(p, with: .color(tint.opacity(0.09)), lineWidth: 0.8)
+            p.addLine(to: CGPoint(x: rx - len * 0.28, y: ry + len))
+            ctx.stroke(p, with: .color(tint.opacity(0.11 + hash01(i * 17) * 0.05)), lineWidth: 0.85)
         }
 
-        // Rare gentle distant sheet-lightning flicker in the upper right
+        // Distant right-side cloud illumination + delicate forked filament (subtle ambient + brighter flicker)
         let cycle: Double = time.truncatingRemainder(dividingBy: 6.5)
-        let flicker: Double
+        let flickerBoost: Double
         if cycle > 0.2 && cycle < 0.42 {
-            flicker = sin((cycle - 0.2) / 0.22 * Double.pi) * 0.22
+            flickerBoost = sin((cycle - 0.2) / 0.22 * Double.pi) * 0.26
         } else if cycle > 0.50 && cycle < 0.64 {
-            flicker = sin((cycle - 0.50) / 0.14 * Double.pi) * 0.14
+            flickerBoost = sin((cycle - 0.50) / 0.14 * Double.pi) * 0.16
         } else {
-            flicker = 0
+            flickerBoost = 0
         }
-        if flicker > 0.01 {
-            let fx: Double = w * 0.78
-            let fy: Double = h * 0.24
-            let fr: Double = min(w, h) * 0.55
-            let fg = Gradient(stops: [
-                .init(color: flashColor.opacity(flicker), location: 0.0),
-                .init(color: tint.opacity(flicker * 0.4), location: 0.5),
-                .init(color: tint.opacity(0.0), location: 1.0)
-            ])
-            ctx.fill(Path(ellipseIn: CGRect(x: fx - fr, y: fy - fr, width: fr * 2, height: fr * 2)),
-                     with: .radialGradient(fg, center: CGPoint(x: fx, y: fy), startRadius: 2, endRadius: fr))
-        }
+        let fx: Double = w * 0.84
+        let fy: Double = h * 0.24
+        let fr: Double = min(w, h) * 0.52
+        let glowAlpha: Double = 0.12 + flickerBoost
+        let fg = Gradient(stops: [
+            .init(color: flashColor.opacity(glowAlpha), location: 0.0),
+            .init(color: tint.opacity(glowAlpha * 0.45), location: 0.5),
+            .init(color: tint.opacity(0.0), location: 1.0)
+        ])
+        ctx.fill(Path(ellipseIn: CGRect(x: fx - fr, y: fy - fr, width: fr * 2, height: fr * 2)),
+                 with: .radialGradient(fg, center: CGPoint(x: fx, y: fy), startRadius: 2, endRadius: fr))
+
+        // Delicate distant jagged bolt in the upper-right margin (keeps well clear of left-aligned text)
+        var bolt = Path()
+        bolt.move(to: CGPoint(x: w * 0.87, y: h * 0.06))
+        bolt.addLine(to: CGPoint(x: w * 0.84, y: h * 0.17))
+        bolt.addLine(to: CGPoint(x: w * 0.88, y: h * 0.23))
+        bolt.addLine(to: CGPoint(x: w * 0.83, y: h * 0.36))
+        bolt.addLine(to: CGPoint(x: w * 0.85, y: h * 0.44))
+        var branch = Path()
+        branch.move(to: CGPoint(x: w * 0.88, y: h * 0.23))
+        branch.addLine(to: CGPoint(x: w * 0.92, y: h * 0.31))
+        let boltAlpha: Double = 0.16 + flickerBoost * 1.15
+        ctx.stroke(bolt, with: .color(flashColor.opacity(boltAlpha)), lineWidth: isMini ? 0.9 : 1.2)
+        ctx.stroke(branch, with: .color(tint.opacity(boltAlpha * 0.7)), lineWidth: isMini ? 0.6 : 0.85)
     }
 
     // 4. Transporter: vertical shimmering energy columns + rising sparkling matter motes.
@@ -1021,38 +1036,67 @@ private enum ThemeBackdropCanvas {
         ctx.stroke(trayLine, with: .color(tray.opacity(0.18)), lineWidth: isMini ? 1.0 : 1.5)
     }
 
-    // 8. Parchment (Ember Typewriter): aged paper fibres, speckles, scorched bottom-right ember hint.
+    // 8. Parchment (Ember Typewriter): laid-paper texture, fibres, foxing, scorched corners & ember glow.
     private static func drawParchment(spec: ThemeBackdrop, in ctx: inout GraphicsContext,
                                       size: CGSize, isMini: Bool) {
         let fibre = Color(nsColor: spec.patternTint)
         let ember = Color(nsColor: spec.patternSecondary)
+        let charColor = Color(nsColor: NSColor(hex: "#3d1808")!)
         let w = Double(size.width)
         let h = Double(size.height)
 
-        // Subtle organic paper fibres
-        let count: Int = isMini ? 22 : 68
+        // Subtle horizontal laid-paper ribs (visible warm texture even at 1x)
+        if !isMini {
+            var ribs = Path()
+            var ry: Double = 4
+            while ry < h {
+                ribs.move(to: CGPoint(x: 0, y: ry))
+                ribs.addLine(to: CGPoint(x: w, y: ry))
+                ry += 5.0
+            }
+            ctx.stroke(ribs, with: .color(fibre.opacity(0.036)), lineWidth: 0.8)
+        }
+
+        // Organic paper fibres & vintage foxing spots
+        let count: Int = isMini ? 24 : 84
         for i in 0..<count {
             let x: Double = hash01(i * 31 + 7) * w
             let y: Double = hash01(i * 47 + 13) * h
             let angle: Double = hash01(i * 17) * Double.pi
-            let len: Double = (isMini ? 3.0 : 5.0) + hash01(i * 23) * (isMini ? 4.0 : 9.0)
+            let len: Double = (isMini ? 3.5 : 6.0) + hash01(i * 23) * (isMini ? 4.0 : 10.0)
             var p = Path()
             p.move(to: CGPoint(x: x, y: y))
             p.addLine(to: CGPoint(x: x + cos(angle) * len, y: y + sin(angle) * len))
-            ctx.stroke(p, with: .color(fibre.opacity(0.05 + hash01(i * 11) * 0.06)), lineWidth: 0.7)
+            ctx.stroke(p, with: .color(fibre.opacity(0.08 + hash01(i * 11) * 0.08)), lineWidth: 0.9)
+        }
+        let specks: Int = isMini ? 14 : 46
+        for i in 0..<specks {
+            let sx: Double = hash01(i * 59 + 3) * w
+            let sy: Double = hash01(i * 71 + 9) * h
+            let r: Double = 0.7 + hash01(i * 13) * 1.4
+            ctx.fill(Path(ellipseIn: CGRect(x: sx - r, y: sy - r, width: r * 2, height: r * 2)),
+                     with: .color(fibre.opacity(0.06 + hash01(i * 29) * 0.07)))
         }
 
-        // Subtle warm scorched ember glow in the bottom-right corner
-        let ex: Double = w * 0.92
-        let ey: Double = h * 0.92
-        let er: Double = min(w, h) * 0.65
-        let eg = Gradient(stops: [
-            .init(color: ember.opacity(0.16), location: 0.0),
-            .init(color: fibre.opacity(0.09), location: 0.45),
-            .init(color: fibre.opacity(0.0), location: 1.0)
-        ])
-        ctx.fill(Path(ellipseIn: CGRect(x: ex - er, y: ey - er, width: er * 2, height: er * 2)),
-                 with: .radialGradient(eg, center: CGPoint(x: ex, y: ey), startRadius: 2, endRadius: er))
+        // Scorched / toasted parchment corners (deep burnt umber + warm ember rim in bottom-right)
+        let scorchCorners: [(Double, Double, Double, Color, Double)] = [
+            (0.95, 0.94, 0.56, charColor, 0.28),
+            (0.90, 0.92, 0.44, ember, 0.22),
+            (0.04, 0.96, 0.40, charColor, 0.18),
+            (0.96, 0.06, 0.36, charColor, 0.16)
+        ]
+        for (fx, fy, fracR, col, alpha) in scorchCorners {
+            let cx: Double = w * fx
+            let cy: Double = h * fy
+            let cr: Double = min(w, h) * fracR
+            let sg = Gradient(stops: [
+                .init(color: col.opacity(alpha), location: 0.0),
+                .init(color: col.opacity(alpha * 0.4), location: 0.48),
+                .init(color: col.opacity(0.0), location: 1.0)
+            ])
+            ctx.fill(Path(ellipseIn: CGRect(x: cx - cr, y: cy - cr, width: cr * 2, height: cr * 2)),
+                     with: .radialGradient(sg, center: CGPoint(x: cx, y: cy), startRadius: 1, endRadius: cr))
+        }
     }
 
     // 9. Ruled (Field Notes): notebook blue-grey ruled lines + coral-red left margin + paper grain.
@@ -1063,8 +1107,8 @@ private enum ThemeBackdropCanvas {
         let w = Double(size.width)
         let h = Double(size.height)
 
-        let spacing: Double = isMini ? 10.0 : 23.0
-        let startY: Double = isMini ? 14.0 : (Double(topInset) + 22.0)
+        let spacing: Double = isMini ? 10.0 : 20.0
+        let startY: Double = isMini ? 14.0 : (Double(topInset) + 21.0)
         var rules = Path()
         var y: Double = startY
         while y < h - (isMini ? 4 : 12) {
@@ -1152,7 +1196,7 @@ private enum ThemeBackdropCanvas {
         }
     }
 
-    // 11. Neon District: dual-tone magenta/cyan glow pools + receding neon horizon perspective grid.
+    // 11. Neon District: dual-tone magenta/cyan glow pools + low receding neon horizon grid.
     private static func drawNeonDistrict(spec: ThemeBackdrop, in ctx: inout GraphicsContext,
                                          size: CGSize, time: Double, isMini: Bool) {
         let pink = Color(nsColor: spec.patternTint)
@@ -1170,13 +1214,19 @@ private enum ThemeBackdropCanvas {
         ctx.fill(Path(ellipseIn: CGRect(x: w * 0.15 - r1, y: h * 0.90 - r1, width: r1 * 2, height: r1 * 2)),
                  with: .radialGradient(g2, center: CGPoint(x: w * 0.15, y: h * 0.90), startRadius: 2, endRadius: r1))
 
-        // Perspective horizon grid across the lower third
-        let horizonY: Double = h * 0.68
+        // Low perspective horizon grid kept below the main note area so no bright line crosses text
+        let horizonY: Double = h * (isMini ? 0.68 : 0.81)
         let floorH: Double = h - horizonY
+        let hGrad = Gradient(stops: [
+            .init(color: pink.opacity(isMini ? 0.34 : 0.24), location: 0.0),
+            .init(color: pink.opacity(isMini ? 0.28 : 0.10), location: 0.45),
+            .init(color: pink.opacity(isMini ? 0.34 : 0.26), location: 1.0)
+        ])
         var horizon = Path()
         horizon.move(to: CGPoint(x: 0, y: horizonY))
         horizon.addLine(to: CGPoint(x: w, y: horizonY))
-        ctx.stroke(horizon, with: .color(pink.opacity(0.34)), lineWidth: isMini ? 0.9 : 1.3)
+        ctx.stroke(horizon, with: .linearGradient(hGrad, startPoint: CGPoint(x: 0, y: horizonY), endPoint: CGPoint(x: w, y: horizonY)),
+                   lineWidth: isMini ? 0.9 : 1.1)
 
         let vLines: Int = isMini ? 7 : 13
         var grid = Path()
@@ -1187,7 +1237,7 @@ private enum ThemeBackdropCanvas {
             grid.move(to: CGPoint(x: topX, y: horizonY))
             grid.addLine(to: CGPoint(x: botX, y: h))
         }
-        let hLines: Int = isMini ? 4 : 6
+        let hLines: Int = isMini ? 4 : 5
         let scroll: Double = (time * 0.35).truncatingRemainder(dividingBy: 1.0)
         for j in 0..<hLines {
             let raw: Double = (Double(j) + scroll) / Double(hLines)
@@ -1195,10 +1245,15 @@ private enum ThemeBackdropCanvas {
             grid.move(to: CGPoint(x: 0, y: y))
             grid.addLine(to: CGPoint(x: w, y: y))
         }
-        ctx.stroke(grid, with: .color(cyan.opacity(isMini ? 0.24 : 0.18)), lineWidth: isMini ? 0.7 : 0.9)
+        let gridGrad = Gradient(stops: [
+            .init(color: cyan.opacity(isMini ? 0.18 : 0.08), location: 0.0),
+            .init(color: cyan.opacity(isMini ? 0.28 : 0.22), location: 1.0)
+        ])
+        ctx.stroke(grid, with: .linearGradient(gridGrad, startPoint: CGPoint(x: 0, y: horizonY), endPoint: CGPoint(x: 0, y: h)),
+                   lineWidth: isMini ? 0.7 : 0.85)
     }
 
-    // 12. Newsprint (Morning Edition): fine broadsheet grain + classic double masthead hairline.
+    // 12. Newsprint (Morning Edition): broadsheet masthead rules, subtle column rules & paper grain.
     private static func drawNewsprint(spec: ThemeBackdrop, in ctx: inout GraphicsContext,
                                       size: CGSize, topInset: CGFloat, isMini: Bool) {
         let ink = Color(nsColor: spec.patternTint)
@@ -1207,30 +1262,60 @@ private enum ThemeBackdropCanvas {
         let h = Double(size.height)
 
         // Fine newsprint paper grain
-        let dots: Int = isMini ? 28 : 110
+        let dots: Int = isMini ? 32 : 140
         for i in 0..<dots {
             let x: Double = hash01(i * 37 + 5) * w
             let y: Double = hash01(i * 53 + 11) * h
-            let s: Double = 0.7 + hash01(i * 19) * 0.8
+            let s: Double = 0.8 + hash01(i * 19) * 0.9
             ctx.fill(Path(CGRect(x: x, y: y, width: s, height: s)),
-                     with: .color(ink.opacity(0.04 + hash01(i * 13) * 0.045)))
+                     with: .color(ink.opacity(0.05 + hash01(i * 13) * 0.055)))
         }
 
-        // Classic double editorial masthead rule below the toolbar
-        let ruleY: Double = isMini ? 13.0 : (Double(topInset) + 4.0)
+        // Broadsheet double masthead rule below the toolbar
+        let ruleY: Double = isMini ? 13.0 : (Double(topInset) + 3.0)
         let padX: Double = isMini ? 8.0 : 18.0
         var thick = Path()
         thick.move(to: CGPoint(x: padX, y: ruleY))
         thick.addLine(to: CGPoint(x: w - padX, y: ruleY))
-        ctx.stroke(thick, with: .color(accent.opacity(0.32)), lineWidth: isMini ? 1.0 : 1.4)
+        ctx.stroke(thick, with: .color(ink.opacity(0.36)), lineWidth: isMini ? 1.1 : 1.8)
 
         var thin = Path()
-        thin.move(to: CGPoint(x: padX, y: ruleY + (isMini ? 2.2 : 3.2)))
-        thin.addLine(to: CGPoint(x: w - padX, y: ruleY + (isMini ? 2.2 : 3.2)))
-        ctx.stroke(thin, with: .color(ink.opacity(0.22)), lineWidth: 0.6)
+        thin.move(to: CGPoint(x: padX, y: ruleY + (isMini ? 2.4 : 3.6)))
+        thin.addLine(to: CGPoint(x: w - padX, y: ruleY + (isMini ? 2.4 : 3.6)))
+        ctx.stroke(thin, with: .color(accent.opacity(0.42)), lineWidth: isMini ? 0.6 : 0.8)
+
+        // Subtle broadsheet column hairlines and bottom edition rule (full pad)
+        if !isMini {
+            let bodyTop: Double = ruleY + 10.0
+            let footY: Double = h - 24.0
+            var cols = Path()
+            for frac in [0.34, 0.67] {
+                let cx: Double = w * frac
+                cols.move(to: CGPoint(x: cx, y: bodyTop))
+                cols.addLine(to: CGPoint(x: cx, y: footY - 6.0))
+            }
+            ctx.stroke(cols, with: .color(ink.opacity(0.06)), lineWidth: 0.7)
+
+            var foot = Path()
+            foot.move(to: CGPoint(x: padX, y: footY))
+            foot.addLine(to: CGPoint(x: w - padX, y: footY))
+            ctx.stroke(foot, with: .color(ink.opacity(0.22)), lineWidth: 0.75)
+
+            // Tiny editorial diamond ornaments at the masthead ends
+            for ox in [padX + 2.5, w - padX - 2.5] {
+                let oy: Double = ruleY + 1.8
+                var d = Path()
+                d.move(to: CGPoint(x: ox, y: oy - 2.2))
+                d.addLine(to: CGPoint(x: ox + 2.2, y: oy))
+                d.addLine(to: CGPoint(x: ox, y: oy + 2.2))
+                d.addLine(to: CGPoint(x: ox - 2.2, y: oy))
+                d.closeSubpath()
+                ctx.fill(d, with: .color(accent.opacity(0.45)))
+            }
+        }
     }
 
-    // 13. Synthwave: 80s twilight stars, banded sunset sun low on horizon, scrolling laser grid.
+    // 13. Synthwave: 80s twilight stars, banded sunset sun tucked lower-right, low scrolling laser grid.
     private static func drawSynthwave(spec: ThemeBackdrop, in ctx: inout GraphicsContext,
                                       size: CGSize, time: Double, isMini: Bool) {
         let pink = Color(nsColor: spec.patternTint)
@@ -1238,30 +1323,30 @@ private enum ThemeBackdropCanvas {
         let gold = Color(nsColor: NSColor(hex: "#ffb84d")!)
         let w = Double(size.width)
         let h = Double(size.height)
-        let horizonY: Double = h * 0.66
+        let horizonY: Double = h * (isMini ? 0.66 : 0.81)
 
         // Upper-sky stars
         let starCount: Int = isMini ? 10 : 26
         for i in 0..<starCount {
             let sx: Double = hash01(i * 29 + 3) * w
-            let sy: Double = hash01(i * 43 + 7) * (horizonY * 0.82)
+            let sy: Double = hash01(i * 43 + 7) * (horizonY * 0.78)
             let r: Double = isMini ? 0.6 : (0.7 + hash01(i * 11) * 0.8)
             let tw: Double = 0.55 + 0.45 * sin(time * 1.5 + Double(i) * 2.1)
             ctx.fill(Path(ellipseIn: CGRect(x: sx - r, y: sy - r, width: r * 2, height: r * 2)),
                      with: .color(Color.white.opacity(0.24 * tw)))
         }
 
-        // Banded retro sunset sun clipped above the horizon
-        let sunX: Double = w * 0.68
-        let sunR: Double = min(w, h) * (isMini ? 0.25 : 0.26)
-        let sunY: Double = horizonY - sunR * 0.18
+        // Banded retro sunset sun tucked to the lower-right so it sits clear of left-aligned text
+        let sunX: Double = w * (isMini ? 0.70 : 0.80)
+        let sunR: Double = min(w, h) * (isMini ? 0.25 : 0.23)
+        let sunY: Double = horizonY - sunR * 0.14
         var sunCtx = ctx
         sunCtx.clip(to: Path(CGRect(x: 0, y: 0, width: w, height: horizonY)))
         let sunRect = CGRect(x: sunX - sunR, y: sunY - sunR, width: sunR * 2, height: sunR * 2)
         let sunGrad = Gradient(stops: [
-            .init(color: gold.opacity(0.34), location: 0.0),
-            .init(color: pink.opacity(0.28), location: 0.65),
-            .init(color: pink.opacity(0.18), location: 1.0)
+            .init(color: gold.opacity(0.28), location: 0.0),
+            .init(color: pink.opacity(0.24), location: 0.65),
+            .init(color: pink.opacity(0.15), location: 1.0)
         ])
         sunCtx.fill(Path(ellipseIn: sunRect),
                     with: .linearGradient(sunGrad, startPoint: CGPoint(x: sunX, y: sunRect.minY), endPoint: CGPoint(x: sunX, y: horizonY)))
@@ -1270,18 +1355,24 @@ private enum ThemeBackdropCanvas {
         let sliceBG = Color(nsColor: NSColor(hex: "#260f3d")!)
         for s in 0..<4 {
             let sy: Double = sunY + sunR * (0.08 + Double(s) * 0.21)
-            let sh: Double = (isMini ? 1.2 : 2.2) + Double(s) * (isMini ? 0.4 : 0.8)
+            let sh: Double = (isMini ? 1.2 : 2.0) + Double(s) * (isMini ? 0.4 : 0.7)
             sunCtx.fill(Path(CGRect(x: sunX - sunR, y: sy, width: sunR * 2, height: sh)),
                         with: .color(sliceBG.opacity(0.75)))
         }
 
-        // Horizon glow line
+        // Horizon glow line (faded in the middle so text never clashes with a hard bar)
+        let hGrad = Gradient(stops: [
+            .init(color: pink.opacity(isMini ? 0.42 : 0.26), location: 0.0),
+            .init(color: pink.opacity(isMini ? 0.34 : 0.12), location: 0.42),
+            .init(color: pink.opacity(isMini ? 0.44 : 0.32), location: 1.0)
+        ])
         var hLine = Path()
         hLine.move(to: CGPoint(x: 0, y: horizonY))
         hLine.addLine(to: CGPoint(x: w, y: horizonY))
-        ctx.stroke(hLine, with: .color(pink.opacity(0.45)), lineWidth: isMini ? 1.0 : 1.5)
+        ctx.stroke(hLine, with: .linearGradient(hGrad, startPoint: CGPoint(x: 0, y: horizonY), endPoint: CGPoint(x: w, y: horizonY)),
+                   lineWidth: isMini ? 1.0 : 1.2)
 
-        // Scrolling perspective laser grid floor
+        // Low scrolling perspective laser grid floor
         let floorH: Double = h - horizonY
         let vLines: Int = isMini ? 7 : 13
         var grid = Path()
@@ -1292,7 +1383,7 @@ private enum ThemeBackdropCanvas {
             grid.move(to: CGPoint(x: topX, y: horizonY))
             grid.addLine(to: CGPoint(x: botX, y: h))
         }
-        let hLines: Int = isMini ? 4 : 6
+        let hLines: Int = isMini ? 4 : 5
         let scroll: Double = (time * 0.42).truncatingRemainder(dividingBy: 1.0)
         for j in 0..<hLines {
             let raw: Double = (Double(j) + scroll) / Double(hLines)
@@ -1300,7 +1391,12 @@ private enum ThemeBackdropCanvas {
             grid.move(to: CGPoint(x: 0, y: y))
             grid.addLine(to: CGPoint(x: w, y: y))
         }
-        ctx.stroke(grid, with: .color(cyan.opacity(isMini ? 0.28 : 0.22)), lineWidth: isMini ? 0.7 : 0.9)
+        let gridGrad = Gradient(stops: [
+            .init(color: cyan.opacity(isMini ? 0.20 : 0.10), location: 0.0),
+            .init(color: cyan.opacity(isMini ? 0.30 : 0.24), location: 1.0)
+        ])
+        ctx.stroke(grid, with: .linearGradient(gridGrad, startPoint: CGPoint(x: 0, y: horizonY), endPoint: CGPoint(x: 0, y: h)),
+                   lineWidth: isMini ? 0.7 : 0.85)
     }
 
     // 14. Aurora: undulating northern-lights curtain ribbons + crisp polar stars.
@@ -1452,5 +1548,28 @@ private enum ThemeBackdropCanvas {
         band2.addLine(to: CGPoint(x: w * 0.22, y: h))
         band2.closeSubpath()
         ctx.fill(band2, with: .color(Color.white.opacity(0.22)))
+    }
+}
+
+/// Build check helper: puts a plain white borderless window behind the pad so edges and glows can be
+/// checked against a light desktop on the black-desktop build Mac. Active only when NOTCHPAD_DEBUG
+/// and NOTCHPAD_DEBUG_WHITE_BG are set.
+enum DebugWhiteDesktop {
+    private static var window: NSWindow?
+
+    static func showIfRequested() {
+        guard notchPadDebug,
+              ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_WHITE_BG"] != nil,
+              window == nil,
+              let screen = NSScreen.main else { return }
+        let win = NSWindow(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        win.backgroundColor = .white
+        win.isOpaque = true
+        win.ignoresMouseEvents = true
+        win.level = .normal
+        win.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        win.orderBack(nil)
+        win.orderFront(nil)
+        window = win
     }
 }

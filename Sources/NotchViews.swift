@@ -109,6 +109,7 @@ struct NotchRootView: View {
         // Under a closing animation the pad snaps shut at once; the animation is what you see.
         .animation(controller.closingWithEffect ? nil : .spring(response: 0.34, dampingFraction: 0.76), value: controller.state)
         .animation(.spring(response: 0.34, dampingFraction: 0.8), value: settings.size)
+        .onAppear { DebugWhiteDesktop.showIfRequested() }
     }
 }
 

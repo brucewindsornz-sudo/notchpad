@@ -95,6 +95,7 @@ struct SettingsView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 138), spacing: 12)], spacing: 12) {
                     ForEach(filteredThemes) { t in
                         ThemeTile(theme: t, selected: isSelected(t), badge: badge(for: t))
+                            .id("theme-" + t.id)
                             .onTapGesture { themes.choose(t) }
                             .accessibilityAction { themes.choose(t) }
                             .contextMenu {
