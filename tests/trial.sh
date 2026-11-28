@@ -99,16 +99,17 @@ if [ -n "$SHOTS" ] || [ "$LIVE" = 1 ]; then
   stop
 fi
 for theme in $(echo "$SHOTS" | tr ',' ' '); do
-  run "open-$theme" NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_DEBUG_THEME="$theme"
+  safe=${theme//:/-}     # "custom:Name" themes: a colon in a file name breaks the artifact upload
+  run "open-$safe" NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_DEBUG_THEME="$theme"
   sleep 4
-  screencapture -x "out/shots/open-$theme.png"
+  screencapture -x "out/shots/open-$safe.png"
   pgrep -x NotchPad >/dev/null || { echo "!! crashed: open-$theme"; FAILED=1; }
   stop
   if [ "$FLOATSHOTS" = 1 ]; then
     defaults write "$P" detached -bool true; defaults write "$P" offsetX -float 180; defaults write "$P" offsetY -float 220
-    run "float-$theme" NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_DEBUG_THEME="$theme"
+    run "float-$safe" NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_DEBUG_THEME="$theme"
     sleep 4
-    screencapture -x "out/shots/float-$theme.png"
+    screencapture -x "out/shots/float-$safe.png"
     pgrep -x NotchPad >/dev/null || { echo "!! crashed: float-$theme"; FAILED=1; }
     stop
     defaults write "$P" detached -bool false; defaults write "$P" offsetX -float 0; defaults write "$P" offsetY -float 0
