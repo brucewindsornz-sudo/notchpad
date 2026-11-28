@@ -42,9 +42,8 @@ export function draw(f, ctx) {
     const l = new Path();
     line(l, tx, y + length * 0.12, tx, y + length * 0.89);
     ctx.stroke(l, ink(navy.alpha(0.53 * shaft)), 2.4);
-    const add = ctx.copy();
-    add.blendMode = 'plusLighter';
-    add.stroke(l, ink(bright.alpha(0.83 * shaft)), 1.1);
+    const core = bright.mix(RGBA.white, 0.37);
+    ctx.stroke(l, ink(core.alpha(0.94 * shaft)), 1.1);
   }
   const flash = smoothstep(0.75, 0.82, t) * (1 - smoothstep(0.83, 0.99, t));
   if (flash > 0) {
@@ -130,6 +129,9 @@ function glitter(f, ctx, tx, ty, tint, bright) {
   if (t < 0.055 || t >= 0.93) return;
   const m = f.cells;
   const glints = new Path(), glows = new Path(), tails = new Path();
+  const levels = 8;
+  const grains = Array.from({ length: levels * 3 }, () => new Path());
+  const materials = [f.bg.mix(bright, 0.80), f.text.mix(bright, 0.80), f.bg.mix(cream, 0.81)];
   for (let i = 0; i < 310; i++) {
     const rx = closeHash(i, 1, f.seed), ry = closeHash(i, 2, f.seed);
     const c = m.color(Math.floor(rx * m.cols), Math.floor(ry * m.rows));
@@ -149,8 +151,12 @@ function glitter(f, ctx, tx, ty, tint, bright) {
     const silver = 0.33 + 0.67 * Math.pow(0.5 + 0.5 * Math.sin(turn * 3 + i * 4), 3);
     const a = smoothstep(0, 0.105, v) * (1 - smoothstep(0.77, 1, v)) * silver;
     const size = (0.50 + 1.56 * d) * (1 - 0.58 * pull);
-    const colour = c.mix(i % 9 === 0 ? cream : bright, 0.62 + 0.34 * d);
-    ctx.fill(Path.ellipse(rect(x - size, y - size * 1.33, size * 2, size * 2.66)), ink(colour.alpha(a)));
+    const level = Math.round(a * levels);
+    if (level > 0) {
+      const contrast = Math.max(Math.abs(c.r - f.bg.r), Math.abs(c.g - f.bg.g), Math.abs(c.b - f.bg.b));
+      const material = i % 9 === 0 ? 2 : (contrast > 0.29 ? 1 : 0);
+      grains[material * levels + level - 1].addEllipse(rect(x - size, y - size * 1.33, size * 2, size * 2.66));
+    }
     if (i % 5 === 0 && a > 0.21) {
       const tail = 4 + 14 * swell * q;
       line(tails, x, y + 1, x - Math.cos(turn) * tail * 0.38, y + tail);
@@ -162,11 +168,15 @@ function glitter(f, ctx, tx, ty, tint, bright) {
       line(glints, x, y - s, x, y + s);
     }
   }
+  for (let i = 0; i < grains.length; i++) {
+    if (!grains[i].isEmpty) {
+      const opacity = (i % levels + 1) / levels;
+      ctx.fill(grains[i], ink(materials[Math.floor(i / levels)].alpha(opacity)));
+    }
+  }
   const envelope = smoothstep(0.08, 0.24, t) * (1 - smoothstep(0.73, 0.93, t));
   ctx.stroke(tails, ink(navy.alpha(0.43 * envelope)), 2.4);
   ctx.stroke(tails, ink(tint.alpha(0.63 * envelope)), 1.1);
-  const add = ctx.copy();
-  add.blendMode = 'plusLighter';
-  add.fill(glows, ink(tint.alpha(0.24 * envelope)));
-  add.stroke(glints, ink(cream.alpha(0.87 * envelope)), 0.9);
+  ctx.fill(glows, ink(tint.alpha(0.24 * envelope)));
+  ctx.stroke(glints, ink(cream.alpha(0.94 * envelope)), 0.9);
 }

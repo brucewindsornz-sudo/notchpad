@@ -113,6 +113,9 @@ struct TeleportClose: CloseEffectRenderer {
         guard t >= 0.055 && t < 0.93 else { return }
         let m = f.cells
         var glints = Path(), glows = Path(), tails = Path()
+        let levels = 8
+        var grains = Array(repeating: Path(), count: 3 * levels)
+        let materials = [f.bg.mix(bright, 0.80), f.text.mix(bright, 0.80), f.bg.mix(teleportCream, 0.81)]
         for i in 0..<310 {
             let rx = closeHash(i, 1, f.seed), ry = closeHash(i, 2, f.seed)
             let c = m.color(Int(rx * Double(m.cols)), Int(ry * Double(m.rows)))
@@ -132,9 +135,13 @@ struct TeleportClose: CloseEffectRenderer {
             let silver = 0.33 + 0.67 * pow(0.5 + 0.5 * sin(turn * 3 + Double(i) * 4), 3)
             let a = smoothstep(0, 0.105, v) * (1 - smoothstep(0.77, 1, v)) * silver
             let s = (0.50 + 1.56 * d) * (1 - 0.58 * pull)
-            let colour = c.mix(i % 9 == 0 ? teleportCream : bright, 0.62 + 0.34 * d)
+            let level = Int((a * Double(levels)).rounded())
             let grain = CGRect(x: x - s, y: y - s * 1.33, width: s * 2, height: s * 2.66)
-            ctx.fill(Path(ellipseIn: grain), with: .color(colour.alpha(a).color))
+            if level > 0 {
+                let contrast = max(abs(c.r - f.bg.r), abs(c.g - f.bg.g), abs(c.b - f.bg.b))
+                let material = i % 9 == 0 ? 2 : (contrast > 0.29 ? 1 : 0)
+                grains[material * levels + level - 1].addEllipse(in: grain)
+            }
             if i % 5 == 0 && a > 0.21 {
                 let tail = 4 + 14 * swell * q
                 teleportLine(&tails, x, y + 1, x - cos(turn) * tail * 0.38, y + tail)
@@ -146,13 +153,18 @@ struct TeleportClose: CloseEffectRenderer {
                 teleportLine(&glints, x, y - flare, x, y + flare)
             }
         }
+        // Collect small grains of the same brightness into one fill. Hundreds of
+        // individual draws cost time even though each grain only covers a few pixels.
+        for i in grains.indices where !grains[i].isEmpty {
+            let opacity = Double(i % levels + 1) / Double(levels)
+            let colour = materials[i / levels].alpha(opacity)
+            ctx.fill(grains[i], with: .color(colour.color))
+        }
         let envelope = smoothstep(0.08, 0.24, t) * (1 - smoothstep(0.73, 0.93, t))
         ctx.stroke(tails, with: .color(teleportNavy.alpha(0.43 * envelope).color), lineWidth: 2.4)
         ctx.stroke(tails, with: .color(tint.alpha(0.63 * envelope).color), lineWidth: 1.1)
-        var add = ctx
-        add.blendMode = .plusLighter
-        add.fill(glows, with: .color(tint.alpha(0.24 * envelope).color))
-        add.stroke(glints, with: .color(teleportCream.alpha(0.87 * envelope).color), lineWidth: 0.9)
+        ctx.fill(glows, with: .color(tint.alpha(0.24 * envelope).color))
+        ctx.stroke(glints, with: .color(teleportCream.alpha(0.94 * envelope).color), lineWidth: 0.9)
     }
 
     private func teleportFinish(_ f: CloseFrame, _ ctx: GraphicsContext, _ tx: Double, _ ty: Double,
@@ -175,9 +187,8 @@ struct TeleportClose: CloseEffectRenderer {
             var line = Path()
             teleportLine(&line, tx, y + length * 0.12, tx, y + length * 0.89)
             ctx.stroke(line, with: .color(teleportNavy.alpha(0.53 * shaft).color), lineWidth: 2.4)
-            var add = ctx
-            add.blendMode = .plusLighter
-            add.stroke(line, with: .color(bright.alpha(0.83 * shaft).color), lineWidth: 1.1)
+            let core = bright.mix(RGBA.white, 0.37)
+            ctx.stroke(line, with: .color(core.alpha(0.94 * shaft).color), lineWidth: 1.1)
         }
         let flash = smoothstep(0.75, 0.82, t) * (1 - smoothstep(0.83, 0.99, t))
         guard flash > 0 else { return }
