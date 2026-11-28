@@ -11,7 +11,7 @@ fi
 
 APP_BUNDLE="${1%/}"
 APP_BIN="$APP_BUNDLE/Contents/MacOS/NotchPad"
-EFFECTS=(lightning matrix teleport stargate blackHole tv dust burn)
+EFFECTS=(lightning matrix teleport stargate blackHole tv dust burn glitch shatter hyperspace melt)
 FRAMES_PER_EFFECT=12
 EXPECTED_FRAMES=$(( ${#EFFECTS[@]} * FRAMES_PER_EFFECT ))
 

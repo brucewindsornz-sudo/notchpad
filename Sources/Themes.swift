@@ -14,6 +14,9 @@ struct PadThemeSpec: Identifiable, Equatable {
     var isCustom = false
     var isSignature = false
     var style: PadThemeStyle? = nil
+    /// Custom theme files only: every `key = value` line as written (palette entries as "palette.4"),
+    /// so the text-colour and backdrop code can read their own keys without touching the parser.
+    var extras: [String: String] = [:]
 
     var secondary: Color { Color(nsColor: text).opacity(0.55) }
     var accentColor: Color { Color(nsColor: accent) }
@@ -256,6 +259,9 @@ final class ThemeStore: ObservableObject {
 
     /// The theme to draw right now (follows light/dark mode if that's switched on).
     var current: PadThemeSpec {
+        // Build checks: NOTCHPAD_DEBUG_THEME=<theme id> shows that theme without changing any setting.
+        if notchPadDebug, let forced = ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_THEME"],
+           let t = all.first(where: { $0.id == forced }) { return t }
         if settings.themeFollowsSystem {
             return theme(id: systemIsDark ? settings.darkThemeID : settings.lightThemeID)
         }
@@ -340,9 +346,11 @@ final class ThemeStore: ObservableObject {
             tracking: number("notchpad-letter-spacing", in: -1...4, default: 0),
             glow: values["notchpad-glow"].flatMap(NSColor.init(hex:)),
             close: close)
+        var extras = values
+        for (n, hex) in palette { extras["palette.\(n)"] = hex }
         return PadThemeSpec(id: "custom:" + file.lastPathComponent, name: name, background: bg, text: fg,
                             accent: accent, selection: selection, isCustom: true,
-                            style: style == PadThemeStyle() ? nil : style)
+                            style: style == PadThemeStyle() ? nil : style, extras: extras)
     }
 
     /// Copies a theme file the user picked into NotchPad's Themes folder.

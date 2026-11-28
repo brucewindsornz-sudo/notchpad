@@ -168,7 +168,7 @@ func closePadPath(in r: CGRect, floating: Bool) -> Path {
 // MARK: - The list of animations
 
 enum CloseEffect: String, CaseIterable, Identifiable {
-    case lightning, matrix, teleport, stargate, blackHole, tv, dust, burn
+    case lightning, matrix, teleport, stargate, blackHole, tv, dust, burn, glitch, shatter, hyperspace, melt
     var id: String { rawValue }
 
     var label: String {
@@ -181,6 +181,10 @@ enum CloseEffect: String, CaseIterable, Identifiable {
         case .tv: return "Old TV"
         case .dust: return "Dust"
         case .burn: return "Burn"
+        case .glitch: return "Glitch"
+        case .shatter: return "Shatter"
+        case .hyperspace: return "Hyperspace"
+        case .melt: return "Liquid metal"
         }
     }
     var detail: String {
@@ -193,6 +197,10 @@ enum CloseEffect: String, CaseIterable, Identifiable {
         case .tv: return "It squashes to a bright line, then a dot, like an old TV switching off."
         case .dust: return "It crumbles and blows away."
         case .burn: return "It burns away from the bottom, leaving embers."
+        case .glitch: return "It tears, jitters and drops out like a bad signal."
+        case .shatter: return "It cracks like glass and the pieces fall away."
+        case .hyperspace: return "It stretches into streaks of light and jumps away."
+        case .melt: return "It melts into liquid metal and flows up into the notch."
         }
     }
     var symbol: String {
@@ -205,6 +213,10 @@ enum CloseEffect: String, CaseIterable, Identifiable {
         case .tv: return "tv"
         case .dust: return "wind"
         case .burn: return "flame.fill"
+        case .glitch: return "waveform.path.ecg"
+        case .shatter: return "square.split.diagonal.2x2"
+        case .hyperspace: return "rays"
+        case .melt: return "drop.fill"
         }
     }
     var renderer: CloseEffectRenderer {
@@ -217,6 +229,10 @@ enum CloseEffect: String, CaseIterable, Identifiable {
         case .tv: return TVClose()
         case .dust: return DustClose()
         case .burn: return BurnClose()
+        case .glitch: return GlitchClose()
+        case .shatter: return ShatterClose()
+        case .hyperspace: return HyperspaceClose()
+        case .melt: return MeltClose()
         }
     }
 
@@ -230,6 +246,9 @@ enum CloseEffect: String, CaseIterable, Identifiable {
         }
     }
 }
+
+/// Build checks: how many frames have been drawn, to compare how heavy the animations are.
+var closeDebugDraws = 0
 
 // MARK: - A run: the fixed facts about one close
 
@@ -385,6 +404,7 @@ struct CloseEffectCanvas: View {
 
     var body: some View {
         Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, viewSize in
+            closeDebugDraws += 1
             let image = context.resolve(Image(decorative: scene.picture, scale: scene.pictureScale))
             let frame = scene.frame(t: t, image: image)
             if frame.t >= 1 { return }
@@ -549,11 +569,12 @@ final class CloseEffectPlayer {
             }
         }
         debugLog("NOTCHPAD_CLOSE effect=\(effect.rawValue) snapshot=\(snap) floating=\(floating)")
+        let drawsBefore = closeDebugDraws
         if frozen == nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + scene.duration + 0.03) { [weak self] in
                 guard let self = self, self.counter == id, self.isPlaying else { return }
                 self.finish()
-                debugLog("NOTCHPAD_CLOSE_DONE effect=\(effect.rawValue)")
+                debugLog("NOTCHPAD_CLOSE_DONE effect=\(effect.rawValue) frames=\(closeDebugDraws - drawsBefore) seconds=\(scene.duration)")
             }
         }
         return true
@@ -590,8 +611,13 @@ final class CloseEffectPlayer {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let theme = ThemeStore.shared.current
         let floating = CloseEffectPlayer.environment["NOTCHPAD_DEBUG_CLOSE_FLOATING"] != nil
+        // NOTCHPAD_DEBUG_CLOSE_ONLY=stargate,matrix renders just those ("none" renders nothing).
+        let only: [String]? = CloseEffectPlayer.environment["NOTCHPAD_DEBUG_CLOSE_ONLY"].map {
+            $0.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+        }
         var count = 0
         for effect in CloseEffect.allCases {
+            if let only = only, !only.contains(effect.rawValue) { continue }
             guard let scene = CloseScene.mock(effect: effect, theme: theme, padSize: CGSize(width: 500, height: 290),
                                               floating: floating) else { continue }
             for i in 0..<n {

@@ -173,6 +173,15 @@ final class Settings: ObservableObject {
     /// or the raw value of a `CloseEffect`.
     @Published var closeEffect: String { didSet { d.set(closeEffect, forKey: "closeEffect") } }
     @Published var closeSpeed: CloseSpeed { didSet { d.set(closeSpeed.rawValue, forKey: "closeSpeed") } }
+    /// Boomerang animation (the flight back to the notch): "theme", "classic", "random",
+    /// or the raw value of a `FlightEffect`.
+    @Published var flightEffect: String { didSet { d.set(flightEffect, forKey: "flightEffect") } }
+    /// Themes colour parts of the note differently (title, lists, numbers, links, tags).
+    @Published var colourText: Bool { didSet { d.set(colourText, forKey: "colourText") } }
+    /// Themes draw their own background (gradients, patterns, glowing edge) rather than one flat colour.
+    @Published var themeBackdrop: Bool { didSet { d.set(themeBackdrop, forKey: "themeBackdrop") } }
+    /// Theme backgrounds may move gently (falling code, twinkling stars).
+    @Published var themeMotion: Bool { didSet { d.set(themeMotion, forKey: "themeMotion") } }
 
     // Size and position (remembered across restarts)
     @Published var rememberLayout: Bool { didSet { d.set(rememberLayout, forKey: "rememberLayout") } }
@@ -222,6 +231,7 @@ final class Settings: ObservableObject {
             "closeOnClickOutside": true, "hotkeyEnabled": true, "showMenuBarIcon": true,
             "size": PadSize.medium.rawValue, "font": PadFont.theme.rawValue, "fontSize": 14.0,
             "closeEffect": "theme", "closeSpeed": CloseSpeed.normal.rawValue,
+            "flightEffect": "theme", "colourText": true, "themeBackdrop": true, "themeMotion": true,
             "theme": "notch", "themeFollowsSystem": false, "lightTheme": "paper", "darkTheme": "notch", "opacity": 1.0, "showWordCount": true,
             "hideFromCapture": true, "lockEnabled": false, "lockAfter": LockAfter.fiveMinutes.rawValue,
             "rememberLayout": true, "customWidth": 0.0, "customHeight": 0.0, "detached": false,
@@ -250,6 +260,10 @@ final class Settings: ObservableObject {
         showWordCount = d.bool(forKey: "showWordCount")
         closeEffect = d.string(forKey: "closeEffect") ?? "theme"
         closeSpeed = CloseSpeed(rawValue: d.string(forKey: "closeSpeed") ?? "") ?? .normal
+        flightEffect = d.string(forKey: "flightEffect") ?? "theme"
+        colourText = d.bool(forKey: "colourText")
+        themeBackdrop = d.bool(forKey: "themeBackdrop")
+        themeMotion = d.bool(forKey: "themeMotion")
         rememberLayout = d.bool(forKey: "rememberLayout")
         customWidth = d.double(forKey: "customWidth")
         customHeight = d.double(forKey: "customHeight")
@@ -276,7 +290,7 @@ final class Settings: ObservableObject {
     func resetToDefaults() {
         for key in ["keepOpen", "openOnHover", "hoverNudge", "haptics", "closeOnClickOutside", "hotkeyEnabled",
                     "showMenuBarIcon", "size", "font", "fontSize", "theme", "themeFollowsSystem", "lightTheme", "darkTheme", "opacity", "showWordCount",
-                    "closeEffect", "closeSpeed",
+                    "closeEffect", "closeSpeed", "flightEffect", "colourText", "themeBackdrop", "themeMotion",
                     "hideFromCapture", "lockEnabled", "lockAfter", "blurWhenAway", "autoErase", "spellCheck",
                     "clipboardClear", "clipboardClearOnLock", "clipboardThisMacOnly", "clipboardHideFromHistory", "hiddenButtons",
                     "terminalEnabled", "terminalMode", "terminalFullShell",
@@ -291,6 +305,8 @@ final class Settings: ObservableObject {
         themeFollowsSystem = fresh.themeFollowsSystem; lightThemeID = fresh.lightThemeID; darkThemeID = fresh.darkThemeID
         opacity = fresh.opacity; showWordCount = fresh.showWordCount
         closeEffect = fresh.closeEffect; closeSpeed = fresh.closeSpeed; hideFromCapture = fresh.hideFromCapture
+        flightEffect = fresh.flightEffect; colourText = fresh.colourText
+        themeBackdrop = fresh.themeBackdrop; themeMotion = fresh.themeMotion
         lockEnabled = fresh.lockEnabled; lockAfter = fresh.lockAfter; blurWhenAway = fresh.blurWhenAway
         autoErase = fresh.autoErase; spellCheck = fresh.spellCheck
         clipboardClear = fresh.clipboardClear; clipboardClearOnLock = fresh.clipboardClearOnLock

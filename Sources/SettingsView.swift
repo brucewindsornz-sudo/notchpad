@@ -103,6 +103,7 @@ struct SettingsView: View {
             }
 
             CloseAnimationSettingsSection()
+            FlightAnimationSettingsSection()
 
             Section("Look") {
                 Picker("Size", selection: Binding(get: { s.size }, set: { new in

@@ -1,76 +1,31 @@
 name: Trial
+# Development only: every push to an fx-* branch type-checks, builds, and renders what the commit message asks for.
+# Put one line like this in the commit message (all parts optional):
+#   fx: close=stargate,matrix flight=gate themes=stargate,paper frames=24 floating shots=matrix,paper settings=theme live
+# See tests/trial.sh for what each part does. Results are in the "trial" artifact of the run.
 on:
   push:
-    branches: [fx-ci]
+    branches: ['fx-**']
+concurrency:
+  group: trial-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   trial:
     runs-on: macos-26
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Type-check
         run: |
-          swiftc -typecheck -target arm64-apple-macos13.0 Sources/*.swift 2>&1 | tee typecheck.log | grep -E "error|warning: var|cannot|ambiguous" | head -150 || true
+          swiftc -typecheck -target arm64-apple-macos13.0 Sources/*.swift > typecheck.log 2>&1 || true
+          grep -E "error|warning: var|cannot|ambiguous" typecheck.log | head -150 || true
           ! grep -q "error:" typecheck.log
       - name: Build
         run: ./build.sh
-      - name: Frames, snapshot, screenshots
-        run: |
-          set +e
-          APP="$PWD/build/NotchPad.app/Contents/MacOS/NotchPad"
-          C=~/Library/Containers/com.newzeebuild.notchpad/Data
-          P="$C/Library/Preferences/com.newzeebuild.notchpad"
-          mkdir -p out/frames out/shots
-          run() { # name, seconds, env...
-            local name=$1 secs=$2; shift 2
-            env NOTCHPAD_DEBUG=1 NOTCHPAD_ALLOW_CAPTURE=1 "$@" "$APP" 2> "out/$name.log" &
-            sleep "$secs"
-          }
-          stop() { pkill -x NotchPad; sleep 1; }
-          # 1. Still frames of every effect from the app's own renderer.
-          run frames 2 NOTCHPAD_DEBUG_CLOSE_FRAMES=${FRAMES:-16}
-          for _ in $(seq 1 120); do grep -q NOTCHPAD_CLOSE_FRAMES out/frames.log && break; sleep 0.5; done
-          D=$(grep NOTCHPAD_CLOSE_FRAMES out/frames.log | sed 's/.*dir=\(.*\) count=.*/\1/')
-          cp "$D"/*.png out/frames/ ; ls out/frames | wc -l
-          stop
-          # 2. A real close, frozen just after the start and half-way, with the picture it was given.
-          mkdir -p "$C/Library/Application Support/NotchPad/Themes"
-          cp "tests/themes/Signal Desk" "$C/Library/Application Support/NotchPad/Themes/" 2>/dev/null
-          brew install cliclick >/dev/null 2>&1
-          run type 3 NOTCHPAD_DEBUG_OPEN=1
-          cliclick -w 20 t:'Things to remember' kp:return kp:return t:'Call the plumber about the tap' kp:return t:'milk, eggs, coffee, bread' kp:return t:'Book the ferry for Friday' kp:return t:'0123456789 The quick brown fox'
-          sleep 1
-          stop
-          for theme in notch matrix chalkboard; do
-            defaults write "$P" theme "$theme"
-            run "open-$theme" 4 NOTCHPAD_DEBUG_OPEN=1
-            screencapture -x "out/shots/open-$theme.png"
-            stop
-            for t in 0.0 0.5; do
-              run "close-$theme-$t" 5 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_DEBUG_CLOSE=matrix NOTCHPAD_DEBUG_CLOSE_FREEZE=$t NOTCHPAD_DEBUG_CLOSE_AFTER=3 NOTCHPAD_DEBUG_CLOSE_SNAPSHOT=1
-              screencapture -x "out/shots/close-$theme-$t.png"
-              S=$(grep NOTCHPAD_CLOSE_SNAPSHOT "out/close-$theme-$t.log" | sed 's/.*file=//')
-              [ -n "$S" ] && cp "$S" "out/shots/snapshot-$theme.png"
-              stop
-            done
-          done
-          # 3. A real close running live (not frozen): does it start, finish and leave nothing behind?
-          defaults write "$P" theme matrix
-          run live 6 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_DEBUG_CLOSE_AFTER=3
-          screencapture -x out/shots/after-live-close.png
-          stop
-          # 4. Settings.
-          for section in closeAnimation theme; do
-            run "settings-$section" 6 NOTCHPAD_DEBUG_SETTINGS=$section
-            screencapture -x "out/shots/settings-$section.png"
-            stop
-          done
-          defaults write "$P" theme "custom:Signal Desk"
-          run custom 4 NOTCHPAD_DEBUG_OPEN=1
-          screencapture -x out/shots/open-custom.png
-          stop
-          grep -h "NOTCHPAD_CLOSE\|NOTCHPAD_THEME" out/*.log | sort | uniq -c | head -60
-          ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head
-          true
+      - name: Trial
+        env:
+          TRIAL_MSG: ${{ github.event.head_commit.message }}
+        run: tests/trial.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
