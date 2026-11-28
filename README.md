@@ -37,6 +37,10 @@ Needs macOS 13 Ventura or later. Built for Apple Silicon and Intel.
   after a restart, and if it was pinned open it reopens on launch.
 - Optional terminal mode (Settings › Terminal mode): run shell commands right in the pad
   and copy the output or add it to your note, via a small script you install yourself.
+- 33 built-in themes, including 12 special themes with their own font, text style and
+  matching closing animation, plus Ghostty theme file import.
+- Eight closing animations (Lightning, Matrix, Teleport, Stargate, Black hole, Old TV, Dust
+  and Burn) with adjustable speed, plus Classic, Match theme and Surprise me.
 
 ## If the pad ever gets stuck
 
@@ -53,8 +57,14 @@ still ends up somewhere awkward, any of these gets you out:
 ## Themes
 Like Ghostty, NotchPad has a theme gallery (Settings › Theme, or the menu bar icon › Theme):
 
-- 21 built-in themes, including Catppuccin, Dracula, Nord, Tokyo Night, Gruvbox, Solarized,
-  Rosé Pine, One Dark, Monokai, Kanagawa, Everforest and GitHub, plus NotchPad's own.
+- 33 built-in themes: 21 classic colour palettes (Catppuccin, Dracula, Nord, Tokyo Night,
+  Gruvbox, Solarized, Rosé Pine, One Dark, Monokai, Kanagawa, Everforest, GitHub and NotchPad's
+  own) plus 12 special themes (under the Special filter) with their own font, text style, glow
+  and paired closing animation: Matrix, Stargate, Storm, Transporter, Singularity, Phosphor,
+  Chalkboard, Ember Typewriter, Field Notes, Blueprint, Neon District and Morning Edition.
+- **Theme's own font:** the Font setting defaults to "Theme's own font", so each special
+  theme brings its own look automatically. Pick a different font in Settings to override the
+  font family while keeping the theme's colours, spacing and glow.
 - **Match light and dark mode:** pick one theme for Light mode and one for Dark mode.
 - **Bring your own:** NotchPad reads Ghostty's theme file format, so any Ghostty theme works
   as it is. Use Import theme files… (it opens Ghostty's themes folder if Ghostty is installed),
@@ -67,10 +77,40 @@ background = #1f2430
 foreground = #cbccc6
 cursor-color = #ffcc66
 selection-background = #33415e
+font-family = Menlo
+font-style = Bold
+notchpad-font-size-scale = 1.0
+notchpad-line-spacing = 2
+notchpad-letter-spacing = 0.5
+notchpad-glow = #ffcc66
+notchpad-close = teleport
 ```
 
 `background` and `foreground` are required. `cursor-color` sets the cursor and highlights
 (if it's missing, `palette = 4=` is used), and `selection-background` sets the text selection.
+
+All style keys are optional (unknown or invalid values are ignored):
+
+- `font-family`: any installed font family or PostScript name, or `mono`, `serif`, `rounded`,
+  `system` (falls back to the system font if unavailable).
+- `font-style`: `Regular`, `Light`, `Medium`, `Semibold`, `Bold`, `Italic` or `Bold Italic`.
+- `notchpad-font-size-scale`: text size ratio from `0.75` to `1.5`.
+- `notchpad-line-spacing`: extra line spacing from `0` to `12` pt.
+- `notchpad-letter-spacing`: letter spacing from `-1` to `4` pt.
+- `notchpad-glow`: text glow colour (`#RGB` or `#RRGGBB`).
+- `notchpad-close`: paired closing animation (`lightning`, `matrix`, `teleport`, `stargate`,
+  `blackHole`, `tv`, `dust` or `burn`).
+
+## Closing animations
+Choose how the pad shuts in Settings › Closing animation:
+
+- **Eight animations:** Lightning, Matrix, Teleport, Stargate, Black hole, Old TV, Dust and Burn.
+- **Match theme** (default) plays the active theme's paired animation, or the classic close if
+  it has none. You can also pick **Classic**, **Surprise me** (a different animation each time),
+  or any single animation.
+- **Speed:** Quick, Normal or Slow, with live previews in Settings.
+- **Reduce motion:** if macOS Reduce motion is turned on in System Settings, NotchPad skips
+  custom closing animations and uses the classic close.
 
 ## Terminal mode (optional add-on)
 Click the terminal icon in the pad's top bar and it turns the theme's accent colour, switching

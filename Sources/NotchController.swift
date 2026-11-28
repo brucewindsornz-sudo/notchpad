@@ -78,6 +78,11 @@ final class NotchController: ObservableObject {
     @Published private(set) var notch: NotchInfo = NotchInfo.current()
     /// Drawn as a floating card (not a notch) — true while dragged away or when restored detached.
     @Published private(set) var showsDetached = false
+    /// True from the moment a closing animation takes over until the pad next opens: the pad itself
+    /// snaps shut underneath the animation instead of springing.
+    @Published private(set) var closingWithEffect = false
+    /// "Try it on the pad" in Settings: the animation to use for the next close only.
+    private var closeEffectOverride: CloseEffect?
 
     let panel = NotchPanel()
     var onOpenSettings: (() -> Void)?
@@ -685,6 +690,8 @@ final class NotchController: ObservableObject {
         if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
         mouseInside = true
         cancelMove()
+        CloseEffectPlayer.shared.cancel()
+        closingWithEffect = false
         panel.alphaValue = 1
         state = .expanded
         layout()
@@ -703,9 +710,28 @@ final class NotchController: ObservableObject {
         cancelMove(); resizeStartMouse = nil
         settings.wasOpen = false
         let wasFloating = showsDetached
+        // A closing animation, if one is chosen: it needs a picture of the pad, taken now while it's still drawn.
+        var animated = false
+        let override = closeEffectOverride
+        closeEffectOverride = nil
+        if let effect = CloseEffectPlayer.shared.effectForNextClose(override: override) {
+            let padRect = expandedRect
+            // A pad that's blurred because the pointer is away, or mid-flight, isn't photographed: the animation
+            // then uses a plain pad in the theme's colour.
+            let hidden = (settings.blurWhenAway && !mouseInside) || springTimer != nil
+            let picture = hidden ? nil : CloseEffectPlayer.snapshot(of: panel, padRect: padRect)
+            animated = CloseEffectPlayer.shared.play(effect, picture: picture, padRect: padRect,
+                                                     sinkRect: closeSinkRect(floating: wasFloating, padRect: padRect),
+                                                     floating: wasFloating, screen: notch.screenFrame,
+                                                     level: panel.level, sharing: panel.sharingType)
+        }
+        closingWithEffect = animated
         state = .collapsed
         debugLog("NOTCHPAD_STATE=collapsed")
-        if wasFloating {
+        if animated {
+            // The animation is drawn over the spot; the pad itself goes straight home.
+            layout()
+        } else if wasFloating {
             // Fade out where it floats, then tuck back into the notch.
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.15
@@ -727,6 +753,32 @@ final class NotchController: ObservableObject {
         }
         // Keep the panel visible above the menu bar.
         panel.orderFrontRegardless()
+    }
+
+    /// Where a closing pad ends up, in screen coordinates: the notch, or its own centre when it floats.
+    private func closeSinkRect(floating: Bool, padRect: NSRect) -> NSRect {
+        if floating { return NSRect(x: padRect.midX - 20, y: padRect.midY - 3, width: 40, height: 6) }
+        let n = notch.rect.size
+        let size = notch.hasNotch
+            ? CGSize(width: max(n.width - 10, 40), height: max(n.height - 4, 10))
+            : CGSize(width: n.width + 12, height: n.height)
+        return NSRect(x: notch.rect.midX - size.width / 2, y: padRect.maxY - size.height, width: size.width, height: size.height)
+    }
+
+    /// Settings' "Try it on the pad": opens the pad if needed, then closes it with that animation
+    /// (nil = whatever the settings say).
+    func previewClose(_ effect: CloseEffect?) {
+        let close: () -> Void = { [weak self] in
+            guard let self = self, self.state == .expanded else { return }
+            self.closeEffectOverride = effect
+            self.collapse(restoreFocus: false)
+        }
+        if state == .expanded {
+            close()
+        } else {
+            expand(byHover: false)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9, execute: close)
+        }
     }
 
     func openSettings() {

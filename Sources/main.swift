@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.isSettingsVisible = { [weak self] in self?.settingsWindow?.isVisible ?? false }
         controller.start()
         NotchActions.dock = { [weak self] in self?.controller.dock() }
+        NotchActions.previewClose = { [weak self] effect in self?.controller.previewClose(effect) }
         controller.restoreOnLaunch()
         if notchPadDebug {
             settings.$keepOpen.dropFirst().sink { on in debugLog("NOTCHPAD_PIN=\(on)") }.store(in: &bag)
@@ -42,6 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_SETTINGS"] != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.showSettings() }
+            }
+            CloseEffectPlayer.shared.writeDebugFramesIfAsked()
+            if let after = Double(ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_CLOSE_AFTER"] ?? "") {
+                // Close the pad the normal way (as Esc does), that many seconds after launch.
+                DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.controller.collapse() }
             }
             if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_OPEN"] != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.controller.expand(byHover: false) }

@@ -1,0 +1,12 @@
+# A Ghostty-format theme with all NotchPad typography options.
+background = #101c26
+foreground = #d0f5ff
+cursor-color = #68d7f0
+selection-background = #243c50
+font-family = Menlo
+font-style = Bold
+notchpad-font-size-scale = 1.1
+notchpad-line-spacing = 3
+notchpad-letter-spacing = 0.3
+notchpad-glow = #62d1f2
+notchpad-close = teleport

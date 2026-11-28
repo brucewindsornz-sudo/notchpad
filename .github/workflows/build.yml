@@ -23,6 +23,13 @@ jobs:
             [ -n "$f" ] && python3 -c "import json,sys; t=open(sys.argv[1]).read().split('\n',1)[1]; d=json.loads(t); imgs=d['usedImages']; th=[x for x in d['threads'] if x.get('triggered')][0]; [print(i, imgs[fr['imageIndex']].get('name','?'), fr.get('symbol','?')) for i,fr in enumerate(th['frames'][:60])]" "$f" || echo "no crash report"
             exit 1
           }
+      - name: Closing animations test
+        run: |
+          tests/close-effects.sh "$PWD/build/NotchPad.app" || {
+            f=$(ls -t ~/Library/Logs/DiagnosticReports/NotchPad* 2>/dev/null | head -1) || true
+            [ -n "$f" ] && python3 -c "import json,sys; t=open(sys.argv[1]).read().split('\n',1)[1]; d=json.loads(t); imgs=d['usedImages']; th=[x for x in d['threads'] if x.get('triggered')][0]; [print(i, imgs[fr['imageIndex']].get('name','?'), fr.get('symbol','?')) for i,fr in enumerate(th['frames'][:60])]" "$f" || echo "no crash report"
+            exit 1
+          }
       - name: Clipboard test
         run: |
           swiftc -o build/cliptest Sources/Clipboard.swift Sources/Settings.swift tests/clipboard/main.swift
@@ -118,6 +125,8 @@ jobs:
           pkill -x NotchPad || true; sleep 1
       - name: Terminal mode end-to-end test
         run: TERMINAL_APP_CI=1 tests/terminal-app.sh /Applications/NotchPad.app
+      - name: Closing animations test
+        run: CLOSE_FRAMES_OUT="$PWD/close-effect-frames" tests/close-effects.sh /Applications/NotchPad.app
       - run: brew install cliclick
       - name: Open the pad, check its graphics, click the pin button
         run: |
@@ -256,6 +265,39 @@ jobs:
           pkill -x NotchPad || true
           cat theme.log
           grep -q 'NOTCHPAD_THEMES custom=\["Ayu Mirage"\]' theme.log && echo "OK: Ghostty theme loaded" || { echo "Theme not loaded"; exit 1; }
+      - name: Capture closing animation and Settings screenshots
+        run: |
+          APP=/Applications/NotchPad.app/Contents/MacOS/NotchPad
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_SETTINGS=closeAnimation NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> settings-close.log &
+          for _ in $(seq 1 60); do
+            grep -q "NOTCHPAD_FRAME" settings-close.log && break
+            sleep 0.25
+          done
+          sleep 3
+          screencapture -x settings-close-animation.png || true
+          pgrep -x NotchPad >/dev/null || { cat settings-close.log; echo "Crashed with Close animation settings open"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
+
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_SETTINGS=theme NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> settings-theme.log &
+          for _ in $(seq 1 60); do
+            grep -q "NOTCHPAD_FRAME" settings-theme.log && break
+            sleep 0.25
+          done
+          sleep 3
+          screencapture -x settings-theme.png || true
+          pgrep -x NotchPad >/dev/null || { cat settings-theme.log; echo "Crashed with Theme settings open"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
+
+          NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_OPEN=1 NOTCHPAD_DEBUG_CLOSE=matrix NOTCHPAD_DEBUG_CLOSE_FREEZE=0.5 NOTCHPAD_DEBUG_CLOSE_AFTER=3 NOTCHPAD_ALLOW_CAPTURE=1 "$APP" 2> close-freeze.log &
+          for _ in $(seq 1 60); do
+            grep -q "NOTCHPAD_CLOSE effect=matrix" close-freeze.log && break
+            sleep 0.25
+          done
+          sleep 1
+          screencapture -x pad-close-matrix-midway.png || true
+          pgrep -x NotchPad >/dev/null || { cat close-freeze.log; echo "Crashed with frozen Matrix close animation"; exit 1; }
+          grep -q "NOTCHPAD_CLOSE effect=matrix" close-freeze.log && echo "OK: Matrix close frozen mid-way" || { cat close-freeze.log; echo "Matrix close did not start"; exit 1; }
+          pkill -x NotchPad || true; sleep 1
       - name: Crash report
         if: failure()
         run: |
@@ -266,6 +308,11 @@ jobs:
         with:
           name: apple-silicon-screenshots
           path: '*.png'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: close-effect-frames
+          path: close-effect-frames
 
   release:
     name: Publish release

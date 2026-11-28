@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import CoreText
 import ServiceManagement
 
 private struct OptionLabel: View {
@@ -13,12 +15,16 @@ private struct OptionLabel: View {
 }
 
 /// Lets the settings window ask the notch controller to re-dock the pad.
-enum NotchActions { static var dock: (() -> Void)? }
+enum NotchActions {
+    static var dock: (() -> Void)?
+    /// Plays a closing animation on the real pad (nil = whatever the current setting picks).
+    static var previewClose: ((CloseEffect?) -> Void)?
+}
 
 struct SettingsView: View {
     @ObservedObject var s = Settings.shared
     @ObservedObject var themes = ThemeStore.shared
-    @State private var themeFilter = 0   // 0 all, 1 dark, 2 light
+    @State private var themeFilter = 0   // 0 all, 1 dark, 2 light, 3 special (signature themes)
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var confirmErase = false
     @State private var confirmReset = false
@@ -62,18 +68,21 @@ struct SettingsView: View {
                     OptionLabel(title: "Match light and dark mode",
                                 detail: "Uses one theme when your Mac is in Light mode and another in Dark mode, like Ghostty's light/dark themes.")
                 }
+                .id("theme")
                 if s.themeFollowsSystem {
                     Text("Light mode: \(themes.theme(id: s.lightThemeID).name)   ·   Dark mode: \(themes.theme(id: s.darkThemeID).name)\nClick a light theme to use it in Light mode, or a dark theme for Dark mode.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Picker("Show", selection: $themeFilter) {
-                    Text("All").tag(0); Text("Dark").tag(1); Text("Light").tag(2)
+                    Text("All").tag(0); Text("Dark").tag(1); Text("Light").tag(2); Text("Special").tag(3)
                 }
                 .pickerStyle(.segmented)
+                .help("Special themes bring their own font, text style and closing animation.")
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 138), spacing: 12)], spacing: 12) {
                     ForEach(filteredThemes) { t in
                         ThemeTile(theme: t, selected: isSelected(t), badge: badge(for: t))
                             .onTapGesture { themes.choose(t) }
+                            .accessibilityAction { themes.choose(t) }
                             .contextMenu {
                                 Button("Use this theme") { themes.choose(t) }
                                 if t.isCustom { Button("Delete theme", role: .destructive) { themes.deleteCustom(t) } }
@@ -89,9 +98,11 @@ struct SettingsView: View {
                 if let msg = themes.lastImportMessage {
                     Text(msg).font(.caption).foregroundStyle(.secondary)
                 }
-                Text("Theme files use Ghostty's format (background, foreground, cursor-color, selection-background), so any Ghostty theme can be imported as it is. Files you put in the Themes folder show up after Reload. Right-click your own themes to delete them.")
+                Text("Theme files use Ghostty's format (background, foreground, cursor-color, selection-background), so any Ghostty theme can be imported as it is. A theme file can also choose its own font, text style and closing animation; the README shows how. Files you put in the Themes folder show up after Reload. Right-click your own themes to delete them.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+
+            CloseAnimationSettingsSection()
 
             Section("Look") {
                 Picker("Size", selection: Binding(get: { s.size }, set: { new in
@@ -108,8 +119,11 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Picker("Font", selection: $s.font) {
+                Picker(selection: $s.font) {
                     ForEach(PadFont.allCases) { Text($0.label).tag($0) }
+                } label: {
+                    OptionLabel(title: "Font",
+                                detail: "\"Theme's own font\" uses the font your theme comes with, or the standard font if it has none. Pick any other font to use it with every theme instead.")
                 }
                 LabeledContent("Text size") {
                     HStack {
@@ -280,7 +294,14 @@ struct SettingsView: View {
     }
 
     private var filteredThemes: [PadThemeSpec] {
-        themes.all.filter { themeFilter == 0 || (themeFilter == 1 ? $0.isDark : !$0.isDark) }
+        themes.all.filter { t in
+            switch themeFilter {
+            case 1: return t.isDark
+            case 2: return !t.isDark
+            case 3: return t.isSignature
+            default: return true
+            }
+        }
     }
 
     private func isSelected(_ t: PadThemeSpec) -> Bool {
@@ -316,8 +337,9 @@ struct ThemeTile: View {
                         Rectangle().fill(theme.accentColor).frame(width: 1.5, height: 11).padding(.leading, 1)
                     }
                 }
-                .font(.system(size: 10))
-                .foregroundColor(Color(nsColor: theme.text))
+                .font(sampleFont)
+                .foregroundColor(sampleColour)
+                .modifier(SettingsGlow(color: glow))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 9)
                 .padding(.top, 16)
@@ -333,8 +355,330 @@ struct ThemeTile: View {
                 Spacer(minLength: 0)
                 if let badge = badge { Text(badge).font(.caption2).foregroundStyle(.secondary) }
             }
+            if !styleLine.isEmpty {
+                HStack(spacing: 3) {
+                    if let e = effect { Image(systemName: e.symbol) }
+                    Text(styleLine).lineLimit(1).truncationMode(.tail)
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
         }
         .contentShape(Rectangle())
-        .help(theme.name)
+        .help(styleLine.isEmpty ? theme.name : theme.name + ": " + styleLine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(theme.name + " theme"))
+        .accessibilityValue(Text(accessibilityValueText))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : [.isButton])
+    }
+
+    /// The theme's own font, so each tile shows its character whatever the Font setting says.
+    private var sampleFont: Font {
+        let f: NSFont = theme.font(.theme, size: 10)
+        return Font(f as CTFont)
+    }
+
+    private var attributes: [NSAttributedString.Key: Any] { theme.textAttributes(.theme, size: 10) }
+
+    private var sampleColour: Color {
+        if let c = attributes[.foregroundColor] as? NSColor { return Color(nsColor: c) }
+        return Color(nsColor: theme.text)
+    }
+
+    private var glow: Color? {
+        guard let shadow = attributes[.shadow] as? NSShadow, let c = shadow.shadowColor else { return nil }
+        return Color(nsColor: c)
+    }
+
+    private var effect: CloseEffect? {
+        guard let id = theme.closeEffectID else { return nil }
+        return CloseEffect(rawValue: id)
+    }
+
+    /// For example "Menlo · glow · Matrix close", or "" for a plain theme.
+    private var styleLine: String {
+        var parts: [String] = []
+        let summary = theme.styleSummary
+        if !summary.isEmpty { parts.append(summary) }
+        if let e = effect, !summary.localizedCaseInsensitiveContains(e.label) {
+            parts.append(e.label + " close")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var accessibilityValueText: String {
+        var parts: [String] = []
+        if selected { parts.append("Selected") }
+        if let b = badge { parts.append(b) }
+        if !styleLine.isEmpty { parts.append(styleLine) }
+        return parts.joined(separator: ", ")
     }
 }
+
+/// A soft glow behind text, only for themes that ask for one.
+private struct SettingsGlow: ViewModifier {
+    let color: Color?
+    @ViewBuilder func body(content: Content) -> some View {
+        if let c = color, ProcessInfo.processInfo.environment["NOTCHPAD_NO_EFFECTS"] == nil {
+            content.shadow(color: c, radius: 2)
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Closing animation
+
+/// The "Closing animation" section: a gallery like the theme one, then speed and a try-it button.
+/// Only one preview moves at a time: the one under the pointer, or the one just clicked.
+struct CloseAnimationSettingsSection: View {
+    @ObservedObject var s = Settings.shared
+    @ObservedObject var themes = ThemeStore.shared
+    @State private var hoverKey: String?
+    @State private var clickKey: String?
+    @State private var clickToken = 0
+
+    init() {}
+
+    var body: some View {
+        Section("Closing animation") {
+            Text("How the pad tucks back into the notch. Point at one to watch it, click to choose it.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .id("closeAnimation")
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 138), spacing: 12)], spacing: 12) {
+                matchThemeTile
+                tile(key: "classic", title: "Classic", subtitle: "Shrinks back into the notch.",
+                     symbol: "arrow.up.to.line", preview: AnyView(classicPreview(key: "classic")))
+                tile(key: "random", title: "Surprise me", subtitle: "A different one each time.",
+                     symbol: "shuffle", preview: AnyView(CloseSurprisePreview(theme: theme, font: padFont,
+                                                                              playing: playingKey == "random")))
+                ForEach(CloseEffect.allCases) { e in
+                    tile(key: e.rawValue, title: e.label, subtitle: e.detail, symbol: e.symbol,
+                         preview: AnyView(effectPreview(e, key: e.rawValue)))
+                }
+            }
+            .padding(.vertical, 4)
+            Picker("Speed", selection: $s.closeSpeed) {
+                ForEach(CloseSpeed.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            HStack(spacing: 8) {
+                Button("Try it on the pad") { NotchActions.previewClose?(nil) }
+                Text("Plays your choice on the pad itself.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Text(motionCaption)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var theme: PadThemeSpec { themes.current }
+
+    private var padFont: Font {
+        let f: NSFont = theme.font(s.font, size: 9)
+        return Font(f as CTFont)
+    }
+
+    private var playingKey: String? { hoverKey ?? clickKey }
+
+    private var motionCaption: String {
+        let base = "Closing animations are skipped when Reduce motion is on (System Settings, Accessibility, Display); the pad then simply closes."
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            return "Reduce motion is on, so the pad closes without an animation. " + base
+        }
+        return base
+    }
+
+    /// "Match theme": shows what that means for the current theme right now.
+    private var matchThemeTile: some View {
+        let resolved: CloseEffect? = CloseEffect.resolve(setting: "theme", theme: theme)
+        let subtitle: String
+        let preview: AnyView
+        if let e = resolved {
+            subtitle = "Now: " + e.label + ", from " + theme.name + "."
+            preview = AnyView(effectPreview(e, key: "theme"))
+        } else {
+            subtitle = "Now: Classic. " + theme.name + " has no animation of its own."
+            preview = AnyView(classicPreview(key: "theme"))
+        }
+        return tile(key: "theme", title: "Match theme", subtitle: subtitle,
+                    symbol: "paintpalette", preview: preview)
+    }
+
+    /// Restarts from the beginning when clicked: a new identity means a fresh preview.
+    private func previewID(_ key: String) -> String {
+        clickKey == key ? key + "-" + String(clickToken) : key
+    }
+
+    private func effectPreview(_ e: CloseEffect, key: String) -> some View {
+        CloseEffectPreview(effect: e, theme: theme, playing: playingKey == key)
+            .id(previewID(key))
+    }
+
+    private func classicPreview(key: String) -> some View {
+        CloseClassicPreview(theme: theme, font: padFont, playing: playingKey == key)
+            .id(previewID(key))
+    }
+
+    private func tile(key: String, title: String, subtitle: String, symbol: String, preview: AnyView) -> some View {
+        CloseChoiceTile(title: title, subtitle: subtitle, symbol: symbol,
+                        selected: s.closeEffect == key, preview: preview)
+            .onHover { inside in
+                if inside {
+                    hoverKey = key
+                } else if hoverKey == key {
+                    hoverKey = nil
+                }
+            }
+            .onTapGesture { choose(key) }
+            .accessibilityAction { choose(key) }
+    }
+
+    /// Selects it and plays it once (about two seconds), even if the pointer moves away.
+    private func choose(_ key: String) {
+        s.closeEffect = key
+        clickToken += 1
+        let token = clickToken
+        clickKey = key
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+            if clickToken == token { clickKey = nil }
+        }
+    }
+}
+
+/// One card in the closing animation gallery.
+private struct CloseChoiceTile: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let selected: Bool
+    let preview: AnyView
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            preview
+                .frame(maxWidth: .infinity)
+                .frame(height: 78)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(selected ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: selected ? 2.5 : 1))
+            HStack(spacing: 4) {
+                Image(systemName: symbol).font(.caption2).foregroundStyle(.secondary)
+                Text(title).font(.caption).lineLimit(1)
+                Spacer(minLength: 0)
+                if selected {
+                    Image(systemName: "checkmark").font(.caption2).foregroundColor(Color.accentColor)
+                }
+            }
+            Text(subtitle)
+                .font(.caption2).foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .contentShape(Rectangle())
+        .help(title + ": " + subtitle)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(title + " closing animation"))
+        .accessibilityValue(Text(selected ? "Selected" : ""))
+        .accessibilityHint(Text(subtitle))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : [.isButton])
+    }
+}
+
+/// A tiny pad under a notch, drawn in the theme. `progress` 0 = open, 1 = tucked away.
+private struct CloseMiniPad: View {
+    let theme: PadThemeSpec
+    let font: Font
+    let progress: CGFloat
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                Rectangle().fill(Color.secondary.opacity(0.14))
+                pad
+                    .frame(width: geo.size.width * 0.78, height: geo.size.height * 0.74)
+                    .scaleEffect(x: 1 - 0.7 * progress, y: max(0.02, 1 - progress), anchor: .top)
+                    .opacity(Double(1 - 0.85 * progress))
+                    .padding(.top, 5)
+                Capsule().fill(Color.black).frame(width: 34, height: 9).offset(y: -2)
+            }
+        }
+    }
+
+    private var pad: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(nsColor: theme.background))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Groceries").fontWeight(.semibold)
+                Text("milk, eggs").opacity(0.8)
+            }
+            .font(font)
+            .foregroundColor(Color(nsColor: theme.text))
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .padding(.top, 9)
+        }
+    }
+}
+
+/// The classic close: the pad shrinks up into the notch, waits, then comes back.
+private struct CloseClassicPreview: View {
+    let theme: PadThemeSpec
+    let font: Font
+    let playing: Bool
+    @State private var start = Date()
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !playing)) { context in
+            CloseMiniPad(theme: theme, font: font, progress: playing ? progress(at: context.date) : 0)
+        }
+        .onAppear { start = Date() }
+        .onChange(of: playing) { now in
+            if now { start = Date() }
+        }
+    }
+
+    /// A 1.8 second loop: hold open, close with an ease-in, stay closed.
+    private func progress(at date: Date) -> CGFloat {
+        let cycle: Double = 1.8
+        let t: Double = date.timeIntervalSince(start).truncatingRemainder(dividingBy: cycle) / cycle
+        if t < 0.15 { return 0 }
+        if t > 0.6 { return 1 }
+        let x: Double = (t - 0.15) / 0.45
+        return CGFloat(x * x)
+    }
+}
+
+/// "Surprise me": the pad with a shuffle sign; while playing it flicks through the animations' symbols.
+private struct CloseSurprisePreview: View {
+    let theme: PadThemeSpec
+    let font: Font
+    let playing: Bool
+
+    var body: some View {
+        TimelineView(.periodic(from: Date(), by: 0.45)) { context in
+            CloseMiniPad(theme: theme, font: font, progress: 0)
+                .overlay(badge(symbol: symbol(at: context.date)).padding(6), alignment: .bottomTrailing)
+        }
+    }
+
+    private func symbol(at date: Date) -> String {
+        guard playing else { return "shuffle" }
+        let all: [CloseEffect] = CloseEffect.allCases
+        if all.isEmpty { return "shuffle" }
+        let i: Int = Int(date.timeIntervalSinceReferenceDate / 0.45) % all.count
+        return all[i].symbol
+    }
+
+    private func badge(symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(theme.accentColor)
+            .frame(width: 24, height: 24)
+            .background(Circle().fill(Color(nsColor: theme.background)))
+            .overlay(Circle().stroke(theme.accentColor.opacity(0.6), lineWidth: 1))
+    }
+}
+

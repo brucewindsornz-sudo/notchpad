@@ -85,7 +85,8 @@ struct NotchRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.spring(response: 0.34, dampingFraction: 0.76), value: controller.state)
+        // Under a closing animation the pad snaps shut at once; the animation is what you see.
+        .animation(controller.closingWithEffect ? nil : .spring(response: 0.34, dampingFraction: 0.76), value: controller.state)
         .animation(.spring(response: 0.34, dampingFraction: 0.8), value: settings.size)
     }
 }
@@ -120,10 +121,9 @@ struct ScratchpadView: View {
                     .animation(.easeInOut(duration: 0.2), value: shouldBlur)
             } else {
                 PadTextView(text: $store.text,
-                            font: settings.font.nsFont(size: CGFloat(settings.fontSize)),
-                            textColor: theme.text,
-                            accentColor: theme.accent,
-                            selectionColor: theme.selection,
+                            theme: theme,
+                            font: settings.font,
+                            fontSize: CGFloat(settings.fontSize),
                             spellCheck: settings.spellCheck,
                             focusToken: controller.focusToken)
                     .modifier(PadBlur(on: shouldBlur && !testNoEffects))
@@ -353,12 +353,17 @@ struct ScratchpadView: View {
 /// Plain-text editor with full control over spell check, fonts and colours.
 struct PadTextView: NSViewRepresentable {
     @Binding var text: String
-    var font: NSFont
-    var textColor: NSColor
-    var accentColor: NSColor
-    var selectionColor: NSColor
+    var theme: PadThemeSpec
+    var font: PadFont
+    var fontSize: CGFloat
     var spellCheck: Bool
     var focusToken: Int
+
+    struct TextStyle: Equatable {
+        let theme: PadThemeSpec
+        let font: PadFont
+        let size: CGFloat
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -383,8 +388,8 @@ struct PadTextView: NSViewRepresentable {
             tv.isAutomaticTextCompletionEnabled = false
             tv.isGrammarCheckingEnabled = false
             tv.textContainerInset = NSSize(width: 4, height: 6)
-            tv.string = text
-            apply(to: tv)
+            tv.textStorage?.delegate = context.coordinator
+            apply(to: tv, coordinator: context.coordinator)
         }
         return scroll
     }
@@ -392,30 +397,88 @@ struct PadTextView: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let tv = scroll.documentView as? NSTextView else { return }
-        if tv.string != text { tv.string = text }
-        apply(to: tv)
+        apply(to: tv, coordinator: context.coordinator)
         if context.coordinator.lastFocus != focusToken {
             context.coordinator.lastFocus = focusToken
             DispatchQueue.main.async { tv.window?.makeFirstResponder(tv) }
         }
     }
 
-    private func apply(to tv: NSTextView) {
-        if tv.font != font { tv.font = font }
-        tv.textColor = textColor
-        tv.insertionPointColor = accentColor
-        tv.selectedTextAttributes = [.backgroundColor: selectionColor, .foregroundColor: textColor]
-        tv.typingAttributes = [.font: font, .foregroundColor: textColor]
+    private func apply(to tv: NSTextView, coordinator: Coordinator) {
+        let style = TextStyle(theme: theme, font: font, size: fontSize)
+        let styleChanged = coordinator.style != style
+        let replaceText = coordinator.representedText != text
+        if styleChanged {
+            coordinator.style = style
+            coordinator.attributes = theme.textAttributes(font, size: fontSize)
+            let paragraph = coordinator.attributes[.paragraphStyle] as? NSParagraphStyle ?? NSParagraphStyle.default
+            tv.defaultParagraphStyle = paragraph
+            coordinator.attributes[.paragraphStyle] = paragraph
+            tv.insertionPointColor = theme.accent
+            tv.selectedTextAttributes = [.backgroundColor: theme.selection, .foregroundColor: theme.text]
+        }
+        if replaceText {
+            coordinator.representedText = text
+            tv.string = text
+        }
+        if styleChanged || replaceText {
+            if let storage = tv.textStorage, storage.length > 0 {
+                // Do not replace characters when a theme changes. Undo, selection and spelling
+                // annotations are managed by AppKit separately from these permanent attributes.
+                storage.beginEditing()
+                coordinator.applyStyle(to: storage, range: NSRange(location: 0, length: storage.length))
+                storage.endEditing()
+            }
+            tv.typingAttributes = coordinator.attributes
+        }
         if tv.isContinuousSpellCheckingEnabled != spellCheck { tv.isContinuousSpellCheckingEnabled = spellCheck }
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    final class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {
+        private static let styleKeys: [NSAttributedString.Key] = [.font, .foregroundColor, .paragraphStyle, .kern, .shadow]
         var parent: PadTextView
+        var representedText: String?
+        var style: TextStyle?
+        var attributes: [NSAttributedString.Key: Any] = [:]
         var lastFocus = -1
         init(_ parent: PadTextView) { self.parent = parent }
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
-            parent.text = tv.string
+            let updated = tv.string
+            representedText = updated
+            tv.typingAttributes = attributes
+            parent.text = updated
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let tv = notification.object as? NSTextView, style != nil else { return }
+            tv.typingAttributes = attributes
+        }
+
+        func applyStyle(to storage: NSTextStorage, range: NSRange) {
+            storage.addAttributes(attributes, range: range)
+            for key in Self.styleKeys where attributes[key] == nil {
+                storage.removeAttribute(key, range: range)
+            }
+        }
+
+        func textStorage(_ textStorage: NSTextStorage, willProcessEditing editedMask: NSTextStorage.EditActions,
+                         range editedRange: NSRange, changeInLength delta: Int) {
+            guard style != nil, editedMask.contains(.editedCharacters), editedRange.length > 0,
+                  NSMaxRange(editedRange) <= textStorage.length else { return }
+            // Undo and paste can supply old attributes. Inspect only the edited range and
+            // leave already-correct text (including ordinary keystrokes) alone.
+            var mismatched: [NSRange] = []
+            textStorage.enumerateAttributes(in: editedRange, options: []) { existing, range, _ in
+                if Self.styleKeys.contains(where: { key in
+                    let before = existing[key] as? NSObject
+                    let after = self.attributes[key] as? NSObject
+                    return before != after
+                }) {
+                    mismatched.append(range)
+                }
+            }
+            for range in mismatched { applyStyle(to: textStorage, range: range) }
         }
     }
 }

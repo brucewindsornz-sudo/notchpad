@@ -22,7 +22,7 @@ struct TerminalView: View {
     private var theme: PadThemeSpec { themes.current }
     /// A point smaller than the note text: command output is often wide.
     private var textSize: Double { max(10, settings.fontSize - 1) }
-    private var inputFont: NSFont { PadFont.mono.nsFont(size: CGFloat(min(textSize, 15))) }
+    private var inputFont: NSFont { theme.monoFont(size: CGFloat(min(textSize, 15))) }
     private var lastEntry: TerminalEntry? { session.entries.last }
 
     var body: some View {
@@ -334,9 +334,15 @@ private struct TerminalTextStyle {
 
     init(theme: PadThemeSpec, fontSize: Double) {
         let size = CGFloat(fontSize)
-        let font: NSFont = PadFont.mono.nsFont(size: size)
-        let small: NSFont = NSFont.monospacedSystemFont(ofSize: max(9, size - 2), weight: .regular)
-        let bold: NSFont = NSFont.monospacedSystemFont(ofSize: size, weight: .semibold)
+        let font = theme.monoFont(size: size)
+        let small = theme.monoFont(size: max(9, size - 2))
+        let bold: NSFont
+        if font.fontName == PadFont.mono.nsFont(size: size).fontName {
+            bold = NSFont.monospacedSystemFont(ofSize: size, weight: .semibold)
+        } else {
+            let candidate = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
+            bold = candidate.isFixedPitch ? candidate : font
+        }
         let dim: NSColor = theme.text.withAlphaComponent(0.55)
         // A red that reads on dark and light backgrounds alike.
         let red: NSColor = theme.isDark
@@ -356,7 +362,7 @@ private struct TerminalTextStyle {
         dimSmall = [.font: small, .foregroundColor: dim, .paragraphStyle: plain]
         redSmall = [.font: small, .foregroundColor: red, .paragraphStyle: plain]
         selection = [.backgroundColor: theme.selection, .foregroundColor: theme.text]
-        signature = "\(theme.id)|\(theme.name)|\(theme.isCustom)|\(theme.text)|\(theme.accent)|\(theme.selection)|\(fontSize)"
+        signature = "\(theme.id)|\(theme.name)|\(theme.isCustom)|\(theme.text)|\(theme.accent)|\(theme.selection)|\(theme.isDark)|\(font.fontName)|\(font.pointSize)|\(small.fontName)|\(small.pointSize)|\(bold.fontName)"
     }
 }
 

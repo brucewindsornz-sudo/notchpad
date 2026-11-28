@@ -21,10 +21,11 @@ enum PadSize: String, CaseIterable, Identifiable {
 }
 
 enum PadFont: String, CaseIterable, Identifiable {
-    case system, rounded, mono, serif
+    case theme, system, rounded, mono, serif
     var id: String { rawValue }
     var label: String {
         switch self {
+        case .theme: return "Theme's own font"
         case .system: return "Standard"
         case .rounded: return "Rounded"
         case .mono: return "Typewriter (monospaced)"
@@ -34,7 +35,7 @@ enum PadFont: String, CaseIterable, Identifiable {
     func nsFont(size: CGFloat) -> NSFont {
         let base = NSFont.systemFont(ofSize: size)
         switch self {
-        case .system: return base
+        case .system, .theme: return base   // a theme's own font comes from PadThemeSpec.font(_:size:)
         case .mono: return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
         case .rounded:
             if let d = base.fontDescriptor.withDesign(.rounded), let f = NSFont(descriptor: d, size: size) { return f }
@@ -42,6 +43,27 @@ enum PadFont: String, CaseIterable, Identifiable {
         case .serif:
             if let d = base.fontDescriptor.withDesign(.serif), let f = NSFont(descriptor: d, size: size) { return f }
             return base
+        }
+    }
+}
+
+/// How long a closing animation takes.
+enum CloseSpeed: String, CaseIterable, Identifiable {
+    case quick, normal, slow
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .quick: return "Quick"
+        case .normal: return "Normal"
+        case .slow: return "Slow"
+        }
+    }
+    /// Multiplies each animation's own length.
+    var factor: Double {
+        switch self {
+        case .quick: return 0.7
+        case .normal: return 1
+        case .slow: return 1.6
         }
     }
 }
@@ -147,6 +169,10 @@ final class Settings: ObservableObject {
     @Published var darkThemeID: String { didSet { d.set(darkThemeID, forKey: "darkTheme") } }
     @Published var opacity: Double { didSet { d.set(opacity, forKey: "opacity") } }
     @Published var showWordCount: Bool { didSet { d.set(showWordCount, forKey: "showWordCount") } }
+    /// Closing animation: "theme" (the theme's own, classic if it has none), "classic", "random",
+    /// or the raw value of a `CloseEffect`.
+    @Published var closeEffect: String { didSet { d.set(closeEffect, forKey: "closeEffect") } }
+    @Published var closeSpeed: CloseSpeed { didSet { d.set(closeSpeed.rawValue, forKey: "closeSpeed") } }
 
     // Size and position (remembered across restarts)
     @Published var rememberLayout: Bool { didSet { d.set(rememberLayout, forKey: "rememberLayout") } }
@@ -194,7 +220,8 @@ final class Settings: ObservableObject {
         d.register(defaults: [
             "keepOpen": false, "openOnHover": false, "hoverNudge": true, "haptics": true,
             "closeOnClickOutside": true, "hotkeyEnabled": true, "showMenuBarIcon": true,
-            "size": PadSize.medium.rawValue, "font": PadFont.system.rawValue, "fontSize": 14.0,
+            "size": PadSize.medium.rawValue, "font": PadFont.theme.rawValue, "fontSize": 14.0,
+            "closeEffect": "theme", "closeSpeed": CloseSpeed.normal.rawValue,
             "theme": "notch", "themeFollowsSystem": false, "lightTheme": "paper", "darkTheme": "notch", "opacity": 1.0, "showWordCount": true,
             "hideFromCapture": true, "lockEnabled": false, "lockAfter": LockAfter.fiveMinutes.rawValue,
             "rememberLayout": true, "customWidth": 0.0, "customHeight": 0.0, "detached": false,
@@ -213,7 +240,7 @@ final class Settings: ObservableObject {
         hotkeyEnabled = d.bool(forKey: "hotkeyEnabled")
         showMenuBarIcon = d.bool(forKey: "showMenuBarIcon")
         size = PadSize(rawValue: d.string(forKey: "size") ?? "") ?? .medium
-        font = PadFont(rawValue: d.string(forKey: "font") ?? "") ?? .system
+        font = PadFont(rawValue: d.string(forKey: "font") ?? "") ?? .theme
         fontSize = d.double(forKey: "fontSize")
         themeID = d.string(forKey: "theme") ?? "notch"
         themeFollowsSystem = d.bool(forKey: "themeFollowsSystem")
@@ -221,6 +248,8 @@ final class Settings: ObservableObject {
         darkThemeID = d.string(forKey: "darkTheme") ?? "notch"
         opacity = d.double(forKey: "opacity")
         showWordCount = d.bool(forKey: "showWordCount")
+        closeEffect = d.string(forKey: "closeEffect") ?? "theme"
+        closeSpeed = CloseSpeed(rawValue: d.string(forKey: "closeSpeed") ?? "") ?? .normal
         rememberLayout = d.bool(forKey: "rememberLayout")
         customWidth = d.double(forKey: "customWidth")
         customHeight = d.double(forKey: "customHeight")
@@ -247,6 +276,7 @@ final class Settings: ObservableObject {
     func resetToDefaults() {
         for key in ["keepOpen", "openOnHover", "hoverNudge", "haptics", "closeOnClickOutside", "hotkeyEnabled",
                     "showMenuBarIcon", "size", "font", "fontSize", "theme", "themeFollowsSystem", "lightTheme", "darkTheme", "opacity", "showWordCount",
+                    "closeEffect", "closeSpeed",
                     "hideFromCapture", "lockEnabled", "lockAfter", "blurWhenAway", "autoErase", "spellCheck",
                     "clipboardClear", "clipboardClearOnLock", "clipboardThisMacOnly", "clipboardHideFromHistory", "hiddenButtons",
                     "terminalEnabled", "terminalMode", "terminalFullShell",
@@ -259,7 +289,8 @@ final class Settings: ObservableObject {
         hotkeyEnabled = fresh.hotkeyEnabled; showMenuBarIcon = fresh.showMenuBarIcon
         size = fresh.size; font = fresh.font; fontSize = fresh.fontSize; themeID = fresh.themeID
         themeFollowsSystem = fresh.themeFollowsSystem; lightThemeID = fresh.lightThemeID; darkThemeID = fresh.darkThemeID
-        opacity = fresh.opacity; showWordCount = fresh.showWordCount; hideFromCapture = fresh.hideFromCapture
+        opacity = fresh.opacity; showWordCount = fresh.showWordCount
+        closeEffect = fresh.closeEffect; closeSpeed = fresh.closeSpeed; hideFromCapture = fresh.hideFromCapture
         lockEnabled = fresh.lockEnabled; lockAfter = fresh.lockAfter; blurWhenAway = fresh.blurWhenAway
         autoErase = fresh.autoErase; spellCheck = fresh.spellCheck
         clipboardClear = fresh.clipboardClear; clipboardClearOnLock = fresh.clipboardClearOnLock
