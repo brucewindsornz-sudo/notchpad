@@ -462,7 +462,7 @@ struct PadTextView: NSViewRepresentable {
             }
         }
 
-        func textStorage(_ textStorage: NSTextStorage, willProcessEditing editedMask: NSTextStorage.EditActions,
+        func textStorage(_ textStorage: NSTextStorage, willProcessEditing editedMask: NSTextStorageEditActions,
                          range editedRange: NSRange, changeInLength delta: Int) {
             guard style != nil, editedMask.contains(.editedCharacters), editedRange.length > 0,
                   NSMaxRange(editedRange) <= textStorage.length else { return }
