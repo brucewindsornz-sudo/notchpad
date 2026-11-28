@@ -452,8 +452,16 @@ final class ThemeStore: ObservableObject {
         signature("blueprint", "Blueprint", "#0e2640", "#d0efff", "#79d8ff", "#294664",
                   fonts: ["Menlo", "Monaco"], fallback: .mono, face: .regular, tracking: 0.45, close: "teleport"),
         signature("neon-district", "Neon District", "#201025", "#ffd9ec", "#70e8e1", "#492346",
-                  fonts: ["Futura-MediumItalic", "AvenirNext-Italic"], fallback: .rounded, tracking: 0.25, glow: "#ff73b8", close: "lightning"),
+                  fonts: ["Futura-MediumItalic", "AvenirNext-Italic"], fallback: .rounded, tracking: 0.25, glow: "#ff73b8", close: "glitch"),
         signature("morning-edition", "Morning Edition", "#f8f7f1", "#282924", "#71402e", "#dbd8ca",
                   fonts: ["Georgia", "Baskerville"], fallback: .serif, face: .regular, scale: 1.06, leading: 3, close: "dust"),
+        signature("synthwave", "Synthwave", "#160b29", "#ffe8f5", "#ff5e9c", "#3f1c52",
+                  fonts: ["AvenirNext-DemiBold", "Futura-Medium"], fallback: .rounded, tracking: 0.35, glow: "#ff5e9c", close: "hyperspace"),
+        signature("aurora", "Aurora", "#07161d", "#e4fff6", "#4ef2b8", "#183b42",
+                  fonts: ["Optima-Regular", "AvenirNext-Regular"], fallback: .system, scale: 1.05, leading: 2.5, glow: "#4ef2b8", close: "melt"),
+        signature("deep-sea", "Deep Sea", "#061524", "#d6f4ff", "#38e2ff", "#143652",
+                  fonts: ["GillSans", "AvenirNext-Regular"], fallback: .system, scale: 1.04, leading: 2.5, glow: "#38e2ff", close: "melt"),
+        signature("liquid-glass", "Liquid Glass", "#eef4fa", "#182230", "#007aff", "#cfe3fa",
+                  fonts: ["HelveticaNeue", "AvenirNext-Regular"], fallback: .system, face: .regular, leading: 2, close: "shatter"),
     ]
 }

@@ -57,16 +57,37 @@ struct NotchRootView: View {
 
     private var expanded: Bool { controller.state == .expanded }
 
+    private var padShape: NotchShape {
+        NotchShape(topRadius: expanded ? 12 : (controller.state == .hovering ? 6 : (controller.notch.hasNotch ? 0 : 6)),
+                   bottomRadius: expanded ? 22 : (controller.state == .hovering ? 12 : 9),
+                   floating: expanded && controller.showsDetached)
+    }
+
     private var fill: Color {
         expanded ? Color(nsColor: themes.current.background).opacity(settings.opacity) : .black
     }
 
+    private var backdropTopInset: CGFloat {
+        controller.showsDetached ? 36 : (controller.notch.menuBarHeight + 32)
+    }
+
+    @ViewBuilder
+    private var padSurface: some View {
+        if expanded && settings.themeBackdrop && !testNoEffects {
+            ThemeBackdropView(theme: themes.current,
+                              shape: padShape,
+                              isOpen: expanded,
+                              allowMotion: settings.themeMotion,
+                              topInset: backdropTopInset)
+                .opacity(settings.opacity)
+        } else {
+            padShape.fill(fill)
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
-            NotchShape(topRadius: expanded ? 12 : (controller.state == .hovering ? 6 : (controller.notch.hasNotch ? 0 : 6)),
-                       bottomRadius: expanded ? 22 : (controller.state == .hovering ? 12 : 9),
-                       floating: expanded && controller.showsDetached)
-                .fill(fill)
+            padSurface
                 .frame(width: shapeSize.width, height: shapeSize.height)
                 .modifier(PadShadow(on: expanded && !testNoEffects))
                 .overlay(alignment: .bottomTrailing) {

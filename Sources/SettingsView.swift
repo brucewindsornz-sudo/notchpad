@@ -73,11 +73,25 @@ struct SettingsView: View {
                     Text("Light mode: \(themes.theme(id: s.lightThemeID).name)   ·   Dark mode: \(themes.theme(id: s.darkThemeID).name)\nClick a light theme to use it in Light mode, or a dark theme for Dark mode.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                Toggle(isOn: $s.colourText) {
+                    OptionLabel(title: "Colourful text",
+                                detail: "Gives headings, lists, numbers, links and tags their own theme colours.")
+                }
+                Toggle(isOn: $s.themeBackdrop) {
+                    OptionLabel(title: "Theme backgrounds",
+                                detail: "Draws each theme's own shading, pattern and edge instead of one flat colour.")
+                }
+                if s.themeBackdrop {
+                    Toggle(isOn: $s.themeMotion) {
+                        OptionLabel(title: "Moving backgrounds",
+                                    detail: "Lets themes with gentle motion (falling code, twinkling stars) move while the pad is open.")
+                    }
+                }
                 Picker("Show", selection: $themeFilter) {
                     Text("All").tag(0); Text("Dark").tag(1); Text("Light").tag(2); Text("Special").tag(3)
                 }
                 .pickerStyle(.segmented)
-                .help("Special themes bring their own font, text style and closing animation.")
+                .help("Special themes bring their own font, background, text colours and closing animation.")
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 138), spacing: 12)], spacing: 12) {
                     ForEach(filteredThemes) { t in
                         ThemeTile(theme: t, selected: isSelected(t), badge: badge(for: t))
@@ -98,7 +112,7 @@ struct SettingsView: View {
                 if let msg = themes.lastImportMessage {
                     Text(msg).font(.caption).foregroundStyle(.secondary)
                 }
-                Text("Theme files use Ghostty's format (background, foreground, cursor-color, selection-background), so any Ghostty theme can be imported as it is. A theme file can also choose its own font, text style and closing animation; the README shows how. Files you put in the Themes folder show up after Reload. Right-click your own themes to delete them.")
+                Text("Theme files use Ghostty's format (background, foreground, cursor-color, selection-background), so any Ghostty theme can be imported as it is. A theme file can also choose its own font, text style, background and closing animation; the README shows how. Files you put in the Themes folder show up after Reload. Right-click your own themes to delete them.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -319,37 +333,49 @@ struct SettingsView: View {
     }
 }
 
-/// A small preview card: the pad's colours, a notch, sample text, a selection and the cursor.
+/// A small preview card: the pad's backdrop, a notch, sample text, a selection and the cursor.
 struct ThemeTile: View {
     let theme: PadThemeSpec
     let selected: Bool
     let badge: String?
+    @ObservedObject private var settings = Settings.shared
+
+    private var tileShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 9, style: .continuous)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color(nsColor: theme.background))
+                if settings.themeBackdrop && !testNoEffects {
+                    ThemeBackdropView(theme: theme, shape: tileShape, isOpen: false, allowMotion: false, isMini: true)
+                } else {
+                    tileShape.fill(Color(nsColor: theme.background))
+                }
                 Capsule().fill(Color.black).frame(width: 34, height: 9).offset(y: -2)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Groceries").fontWeight(.semibold)
+                VStack(alignment: .leading, spacing: 2.5) {
+                    Text("Trip plan").fontWeight(.semibold).lineLimit(1)
                     HStack(spacing: 0) {
-                        Text("milk, ").foregroundColor(Color(nsColor: theme.text).opacity(0.8))
-                        Text("eggs").padding(.horizontal, 1).background(Color(nsColor: theme.selection))
-                        Rectangle().fill(theme.accentColor).frame(width: 1.5, height: 11).padding(.leading, 1)
+                        Text("• ").foregroundColor(theme.accentColor)
+                        Text("ferry ").foregroundColor(sampleColour.opacity(0.86))
+                        Text("9:30 ").foregroundColor(theme.accentColor)
+                        Text("#trip").padding(.horizontal, 1.5).background(Color(nsColor: theme.selection).opacity(0.85))
+                        Rectangle().fill(theme.accentColor).frame(width: 1.4, height: 10).padding(.leading, 1)
                     }
+                    .lineLimit(1)
                 }
                 .font(sampleFont)
                 .foregroundColor(sampleColour)
                 .modifier(SettingsGlow(color: glow))
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 9)
+                .padding(.horizontal, 8)
                 .padding(.top, 16)
-                Circle().fill(theme.accentColor).frame(width: 6, height: 6)
-                    .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, 8).padding(.top, 6)
+                Circle().fill(theme.accentColor).frame(width: 5.5, height: 5.5)
+                    .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, 7).padding(.top, 6)
             }
-            .frame(height: 62)
-            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .frame(height: 64)
+            .clipShape(tileShape)
+            .overlay(tileShape
                 .stroke(selected ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: selected ? 2.5 : 1))
             HStack(spacing: 4) {
                 Text(theme.name).font(.caption).lineLimit(1)
