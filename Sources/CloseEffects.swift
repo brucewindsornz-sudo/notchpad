@@ -252,7 +252,7 @@ var closeDebugDraws = 0
 
 // MARK: - A run: the fixed facts about one close
 
-private func closeBitmap(width: CGFloat, height: CGFloat, scale: CGFloat, draw: (CGContext) -> Void) -> CGImage? {
+func closeBitmap(width: CGFloat, height: CGFloat, scale: CGFloat, draw: (CGContext) -> Void) -> CGImage? {
     let pw = Int((width * scale).rounded(.up)), ph = Int((height * scale).rounded(.up))
     guard pw > 0, ph > 0, pw < 8000, ph < 8000,
           let space = CGColorSpace(name: CGColorSpace.sRGB),
@@ -266,7 +266,7 @@ private func closeBitmap(width: CGFloat, height: CGFloat, scale: CGFloat, draw: 
 }
 
 /// Draws an upright image into a context that has a top-left origin.
-private func closeDraw(_ image: CGImage, in rect: CGRect, _ ctx: CGContext) {
+func closeDraw(_ image: CGImage, in rect: CGRect, _ ctx: CGContext) {
     ctx.saveGState()
     ctx.translateBy(x: rect.minX, y: rect.maxY)
     ctx.scaleBy(x: 1, y: -1)
@@ -328,7 +328,7 @@ struct CloseScene {
         self.cells = CloseScene.makeCells(from: trimmed, pad: pad)
     }
 
-    private static func makeCells(from picture: CGImage, pad: CGRect) -> CloseCells {
+    static func makeCells(from picture: CGImage, pad: CGRect) -> CloseCells {
         let size: Double = max(6, (Double(pad.width) * Double(pad.height) / 5000).squareRoot())
         let cols = max(1, Int((Double(pad.width) / size).rounded(.up)))
         let rows = max(1, Int((Double(pad.height) / size).rounded(.up)))
@@ -462,7 +462,7 @@ private struct CloseEffectStage: View {
     }
 }
 
-private final class CloseEffectWindow: NSPanel {
+final class CloseEffectWindow: NSPanel {
     init() {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)

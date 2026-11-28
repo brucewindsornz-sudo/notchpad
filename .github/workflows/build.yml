@@ -30,6 +30,8 @@ jobs:
             [ -n "$f" ] && python3 -c "import json,sys; t=open(sys.argv[1]).read().split('\n',1)[1]; d=json.loads(t); imgs=d['usedImages']; th=[x for x in d['threads'] if x.get('triggered')][0]; [print(i, imgs[fr['imageIndex']].get('name','?'), fr.get('symbol','?')) for i,fr in enumerate(th['frames'][:60])]" "$f" || echo "no crash report"
             exit 1
           }
+      - name: Boomerang animations test
+        run: tests/flight-effects.sh "$PWD/build/NotchPad.app"
       - name: Clipboard test
         run: |
           swiftc -o build/cliptest Sources/Clipboard.swift Sources/Settings.swift tests/clipboard/main.swift
@@ -127,6 +129,8 @@ jobs:
         run: TERMINAL_APP_CI=1 tests/terminal-app.sh /Applications/NotchPad.app
       - name: Closing animations test
         run: CLOSE_FRAMES_OUT="$PWD/close-effect-frames" tests/close-effects.sh /Applications/NotchPad.app
+      - name: Boomerang animations test
+        run: FLIGHT_FRAMES_OUT="$PWD/flight-effect-frames" tests/flight-effects.sh /Applications/NotchPad.app
       - run: brew install cliclick
       - name: Open the pad, check its graphics, click the pin button
         run: |

@@ -147,6 +147,10 @@ final class NotchController: ObservableObject {
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mouseMask, handler: { [weak self] _ in self?.mouseMoved() }) { monitors.append(g) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: mouseMask, handler: { [weak self] e in self?.mouseMoved(); return e }) { monitors.append(l) }
         if let g = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { [weak self] e in self?.globalClick(e) }) { monitors.append(g) }
+        if let l = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { e in
+            FlightEffectPlayer.shared.cancel()
+            return e
+        }) { monitors.append(l) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] e in
             guard let self = self else { return e }
             if e.keyCode == 53, self.state == .expanded { self.collapse(); return nil } // Esc
@@ -163,13 +167,20 @@ final class NotchController: ObservableObject {
         }.store(in: &bag)
         settings.$customWidth.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
         settings.$customHeight.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
-        settings.$detached.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
+        settings.$detached.dropFirst().sink { [weak self] _ in
+            // The flight saves its docked position at take-off. Its own settings update must not land it.
+            DispatchQueue.main.async { self?.layout(preservingFlight: true) }
+        }.store(in: &bag)
         settings.$size.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
         settings.$hideFromCapture.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.applyPrivacy() } }.store(in: &bag)
+        settings.$blurWhenAway.dropFirst().sink { _ in
+            DispatchQueue.main.async { FlightEffectPlayer.shared.cancel() }
+        }.store(in: &bag)
 
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.screenChanged() }
         let lockNow: (Notification) -> Void = { [weak self] _ in
+            FlightEffectPlayer.shared.cancel()
             if self?.settings.clipboardClearOnLock == true { ClipboardGuard.shared.clearIfOurs() }
             LockManager.shared.lock()
             if self?.state == .expanded, self?.settings.keepOpen == false { self?.collapse() }
@@ -282,7 +293,9 @@ final class NotchController: ObservableObject {
         return NSRect(x: notch.rect.midX - w / 2, y: sf.maxY - h, width: w, height: h)
     }
 
-    func layout() {
+    func layout(preservingFlight: Bool = false) {
+        if preservingFlight && FlightEffectPlayer.shared.isPlaying { return }
+        FlightEffectPlayer.shared.cancel()
         notch = NotchInfo.current()
         // A drag or a magnet pull is moving the window; it saves its own position when it lands.
         if moveStartMouse != nil || springTimer != nil { layoutPending = true; return }
@@ -306,6 +319,7 @@ final class NotchController: ObservableObject {
     /// `translation` is how far the pointer had already travelled when the gesture was recognised
     /// (window coordinates, y down), so the pad doesn't lag behind by that much.
     func moveDrag(translation: CGSize = .zero) {
+        FlightEffectPlayer.shared.cancel()
         guard state == .expanded else { return }
         if ignoreDragUntilUp {
             if NSEvent.pressedMouseButtons & 1 == 0 { ignoreDragUntilUp = false } else { return }
@@ -539,6 +553,7 @@ final class NotchController: ObservableObject {
     }
 
     func resizeDrag() {
+        FlightEffectPlayer.shared.cancel()
         guard state == .expanded else { return }
         let m = NSEvent.mouseLocation
         guard let m0 = resizeStartMouse else {
@@ -569,23 +584,32 @@ final class NotchController: ObservableObject {
     /// Put the pad back in the notch (keeps its size).
     func dock() { dock(animated: true) }
 
-    /// The boomerang button: the pad swings out in a curve and flies back into the notch.
+    /// The boomerang button: sends the floating pad back into the notch.
     func boomerang() { dock(animated: true, boomerang: true) }
 
     func dock(animated: Bool, boomerang: Bool = false) {
+        FlightEffectPlayer.shared.cancel()
         if moveStartMouse != nil { cancelMove() }    // "Put back in notch" must always win
-        let wasDetached = showsDetached
-        let saveDocked = { [weak self] in
-            guard let self = self else { return }
-            self.settings.detached = false
-            self.settings.offsetX = 0
-            self.settings.offsetY = 0
-        }
-        showsDetached = false
         let home = panelFrame(floating: false)
+        if boomerang, animated, state == .expanded, showsDetached, springTimer == nil,
+           let effect = FlightEffectPlayer.shared.effectForNextFlight(),
+           launchFlight(effect, home: home) { return }
+        glideHome(home, animated: animated, boomerang: boomerang)
+    }
+
+    private func saveDockedPosition() {
+        if settings.detached { settings.detached = false }
+        settings.offsetX = 0
+        settings.offsetY = 0
+    }
+
+    private func glideHome(_ home: NSRect, animated: Bool, boomerang: Bool) {
+        let wasDetached = showsDetached
+        showsDetached = false
         guard state == .expanded, animated, moveStartMouse == nil else {
+            springDone = nil
             stopSpring()
-            saveDocked()
+            saveDockedPosition()
             if state == .expanded { panel.setFrame(home, display: true) }
             return
         }
@@ -610,12 +634,96 @@ final class NotchController: ObservableObject {
                 debugLog("NOTCHPAD_BOOMERANG distance=\(Int(dist))")
             }
         }
-        saveDocked()            // layout() waits for the spring, so saving now can't jerk it mid-pull
-        springDone = { [weak self] in self?.panel.setFrame(home, display: true) }
+        saveDockedPosition()            // layout() waits for the spring, so saving now can't jerk it mid-pull
+        springDone = { [weak self] in
+            guard let self = self else { return }
+            self.panel.setFrame(home, display: true)
+            if boomerang { self.logFlightLanding(mode: "classic") }
+        }
         startSpring()
     }
 
+    private func launchFlight(_ effect: FlightEffect, home: NSRect) -> Bool {
+        let sourceFrame = panel.frame
+        let from = expandedRect
+        let to = NSRect(x: home.midX - from.width / 2, y: home.maxY - from.height, width: from.width, height: from.height)
+        let theme = ThemeStore.shared.current
+        guard let route = FlightEffectPlayer.Route(from: from, to: to, notch: notch.rect, screen: notch.screenFrame),
+              let first = FlightEffectPlayer.picture(of: panel, pad: from, floating: true,
+                                                     obscured: settings.blurWhenAway && !mouseInside,
+                                                     theme: theme, opacity: settings.opacity) else { return false }
+
+        openedByHover = false
+        leaveWork?.cancel(); leaveWork = nil
+        resizeStartMouse = nil
+        let speed = settings.closeSpeed.factor
+        let seed = UInt32.random(in: 1...UInt32.max)
+        let player = FlightEffectPlayer.shared
+        let token = player.cover(route, picture: first, panel: panel) { [weak self, weak panel = self.panel] didFly in
+            // Even if the controller has gone away, never leave a retained window hidden.
+            panel?.alphaValue = 1
+            if let self = self {
+                self.mouseInside = self.expandedRect.insetBy(dx: -6, dy: -6).contains(NSEvent.mouseLocation)
+                if didFly { self.logFlightLanding(mode: "effect") }
+            }
+        }
+        panel.alphaValue = 0
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            showsDetached = false
+            mouseInside = to.insetBy(dx: -6, dy: -6).contains(NSEvent.mouseLocation)
+        }
+        panel.setFrame(home, display: true)
+        saveDockedPosition()
+
+        // Give the hosting view a turn to swap the toolbar and resize its AppKit text editor.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+            guard let self = self, player.isCurrent(token) else { return }
+            guard let last = FlightEffectPlayer.picture(of: self.panel, pad: to, floating: false,
+                                                         obscured: self.settings.blurWhenAway && !self.mouseInside,
+                                                         theme: theme, opacity: self.settings.opacity) else {
+                self.panel.setFrame(sourceFrame, display: false)
+                self.showsDetached = true
+                player.cancel()
+                self.glideHome(home, animated: true, boomerang: true)
+                return
+            }
+            let scene = FlightScene(effect: effect, theme: theme, speed: speed, size: route.bounds.size, from: route.from,
+                                    to: route.to, notch: route.notch, fromPicture: first, toPicture: last, seed: seed)
+            player.play(scene, token: token)
+        }
+        return true
+    }
+
+    private func logFlightLanding(mode: String) {
+        guard notchPadDebug else { return }
+        let atHome = abs(panel.frame.midX - notch.rect.midX) < 1 && abs(panel.frame.maxY - notch.screenFrame.maxY) < 1
+        let docked = atHome && !showsDetached && !settings.detached
+        let visible = panel.isVisible && panel.alphaValue >= 0.99 && !panel.ignoresMouseEvents && state == .expanded
+        debugLog("NOTCHPAD_FLIGHT_LANDED mode=\(mode) docked=\(docked) visible=\(visible)")
+    }
+
+    /// Settings' preview uses the real pad and respects the currently selected animation.
+    func previewFlight() {
+        FlightEffectPlayer.shared.cancel()
+        if state != .expanded { expand(byHover: false) }
+        if !showsDetached {
+            settings.offsetX = min(240, Double(notch.screenFrame.width) * 0.18)
+            settings.offsetY = min(280, Double(notch.screenFrame.height) * 0.38)
+            settings.detached = true
+            layout()
+        }
+        let previewFrame = panel.frame
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak self] in
+            guard let self = self, self.state == .expanded, self.showsDetached,
+                  self.panel.frame == previewFrame, self.moveStartMouse == nil, self.resizeStartMouse == nil else { return }
+            self.boomerang()
+        }
+    }
+
     private func applyPrivacy() {
+        FlightEffectPlayer.shared.cancel()
         let testCapture = ProcessInfo.processInfo.environment["NOTCHPAD_ALLOW_CAPTURE"] != nil   // build checks only
         panel.sharingType = settings.hideFromCapture && !testCapture ? .none : .readOnly
     }
@@ -623,6 +731,7 @@ final class NotchController: ObservableObject {
     // MARK: Mouse
 
     private func mouseMoved() {
+        if FlightEffectPlayer.shared.isPlaying { return }
         let p = NSEvent.mouseLocation
         switch state {
         case .collapsed:
@@ -664,6 +773,7 @@ final class NotchController: ObservableObject {
     }
 
     private func globalClick(_ e: NSEvent) {
+        FlightEffectPlayer.shared.cancel()
         let p = NSEvent.mouseLocation
         if state != .expanded {
             if hotRect.contains(p), e.type == .leftMouseDown { expand(byHover: false) }
@@ -679,6 +789,7 @@ final class NotchController: ObservableObject {
     }
 
     func expand(byHover: Bool) {
+        FlightEffectPlayer.shared.cancel()
         hoverOpenWork?.cancel()
         leaveWork?.cancel(); leaveWork = nil
         openedByHover = byHover
@@ -704,6 +815,7 @@ final class NotchController: ObservableObject {
     }
 
     func collapse(restoreFocus: Bool = true) {
+        FlightEffectPlayer.shared.cancel()
         guard state == .expanded else { state = .collapsed; return }
         leaveWork?.cancel(); leaveWork = nil
         NoteStore.shared.saveNow()
@@ -739,7 +851,7 @@ final class NotchController: ObservableObject {
             }, completionHandler: { [weak self] in
                 guard let self = self else { return }
                 if self.state != .expanded { self.layout() }
-                self.panel.alphaValue = 1
+                if !FlightEffectPlayer.shared.isPlaying { self.panel.alphaValue = 1 }
             })
         } else {
             layout()
