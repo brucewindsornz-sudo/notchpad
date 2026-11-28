@@ -5,6 +5,8 @@
 #   close=a,b      closing animations to render as still frames ("all", or "none"; default all)
 #   flight=a,b     boomerang animations to render as still frames ("all", or "none"; default none)
 #   frames=N       still frames per animation (default 12, at most 120)
+#   layout=a,b     where the floating pad starts for boomerang frames: far (default), near, left, right, below.
+#                  Frames for layouts other than far land in out/frames/<theme>-<layout>/
 #   themes=a,b     theme ids to render the frames in (default notch)
 #   floating       also render the closing animations for a floating pad
 #   shots=a,b      screenshots of the real pad, open, with a sample note, in these themes
@@ -23,8 +25,10 @@ mkdir -p out/frames out/shots out/logs
 
 LINE=$(printf '%s\n' "${TRIAL_MSG:-}" | grep -E '^[[:space:]]*fx:' | head -1 | sed 's/^[[:space:]]*fx://')
 CLOSE=all; FLIGHT=none; FRAMES=12; THEMES=notch; FLOATING=0; SHOTS=""; FLOATSHOTS=0; SETTINGS=""; LIVE=0
+LAYOUTS=far
 for word in $LINE; do
   case "$word" in
+    layout=*|layouts=*) LAYOUTS=${word#*=} ;;
     close=*) CLOSE=${word#close=} ;;
     flight=*) FLIGHT=${word#flight=} ;;
     frames=*) FRAMES=${word#frames=} ;;
@@ -77,6 +81,19 @@ for theme in $(echo "$THEMES" | tr ',' ' '); do
       D=$(grep NOTCHPAD_FLIGHT_FRAMES "out/logs/$name.log" | sed 's/.*dir=\(.*\) count=.*/\1/')
       [ -n "$D" ] && cp "$D"/*.png "$dest"/ 2>/dev/null
     fi
+    stop
+    echo "frames: $dest -> $(ls "$dest" | wc -l | tr -d ' ') files"
+  done
+  # Boomerang frames from other starting places.
+  for layout in $(echo "$LAYOUTS" | tr ',' ' '); do
+    [ "$layout" = far ] && continue
+    [ "$FLIGHT" = none ] && continue
+    name="frames-$theme-$layout"; dest="out/frames/$theme-$layout"; mkdir -p "$dest"
+    only=(); [ "$FLIGHT" != all ] && only=(NOTCHPAD_DEBUG_FLIGHT_ONLY="$FLIGHT")
+    run "$name" NOTCHPAD_DEBUG_THEME="$theme" NOTCHPAD_DEBUG_FLIGHT_FRAMES="$FRAMES" NOTCHPAD_DEBUG_FLIGHT_LAYOUT="$layout" ${only[@]+"${only[@]}"}
+    wait_log "$name" "^NOTCHPAD_FLIGHT_FRAMES dir=" 240 || FAILED=1
+    D=$(grep NOTCHPAD_FLIGHT_FRAMES "out/logs/$name.log" | sed 's/.*dir=\(.*\) count=.*/\1/')
+    [ -n "$D" ] && cp "$D"/*.png "$dest"/ 2>/dev/null
     stop
     echo "frames: $dest -> $(ls "$dest" | wc -l | tr -d ' ') files"
   done
