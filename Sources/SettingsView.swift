@@ -333,7 +333,7 @@ struct SettingsView: View {
     }
 }
 
-/// A small preview card: the pad's backdrop, a notch, sample text, a selection and the cursor.
+/// A small preview card: the pad's backdrop, a notch, sample text in the theme's ink colours, and the cursor.
 struct ThemeTile: View {
     let theme: PadThemeSpec
     let selected: Bool
@@ -345,6 +345,13 @@ struct ThemeTile: View {
     }
 
     var body: some View {
+        let ink = theme.ink
+        let useInk = settings.colourText
+        let titleColor = useInk ? Color(nsColor: ink.title) : sampleColour
+        let markerColor = useInk ? Color(nsColor: ink.marker) : theme.accentColor
+        let numberColor = useInk ? Color(nsColor: ink.number) : sampleColour.opacity(0.86)
+        let tagColor = useInk ? Color(nsColor: ink.tag) : sampleColour
+
         VStack(alignment: .leading, spacing: 5) {
             ZStack(alignment: .top) {
                 if settings.themeBackdrop && !testNoEffects {
@@ -354,24 +361,39 @@ struct ThemeTile: View {
                 }
                 Capsule().fill(Color.black).frame(width: 34, height: 9).offset(y: -2)
                 VStack(alignment: .leading, spacing: 2.5) {
-                    Text("Trip plan").fontWeight(.semibold).lineLimit(1)
+                    Text("Trip plan")
+                        .fontWeight(.semibold)
+                        .foregroundColor(titleColor)
+                        .lineLimit(1)
                     HStack(spacing: 0) {
-                        Text("• ").foregroundColor(theme.accentColor)
+                        Text("• ").foregroundColor(markerColor)
                         Text("ferry ").foregroundColor(sampleColour.opacity(0.86))
-                        Text("9:30 ").foregroundColor(theme.accentColor)
-                        Text("#trip").padding(.horizontal, 1.5).background(Color(nsColor: theme.selection).opacity(0.85))
+                        Text("9:30 ").foregroundColor(numberColor)
+                        Text("#trip")
+                            .foregroundColor(tagColor)
+                            .padding(.horizontal, 1.5)
+                            .background(Color(nsColor: theme.selection).opacity(0.75))
                         Rectangle().fill(theme.accentColor).frame(width: 1.4, height: 10).padding(.leading, 1)
                     }
                     .lineLimit(1)
                 }
                 .font(sampleFont)
-                .foregroundColor(sampleColour)
                 .modifier(SettingsGlow(color: glow))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
                 .padding(.top, 16)
-                Circle().fill(theme.accentColor).frame(width: 5.5, height: 5.5)
-                    .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, 7).padding(.top, 6)
+                HStack(spacing: 2.5) {
+                    if useInk {
+                        Circle().fill(Color(nsColor: ink.title)).frame(width: 4.5, height: 4.5)
+                        Circle().fill(Color(nsColor: ink.number)).frame(width: 4.5, height: 4.5)
+                        Circle().fill(Color(nsColor: ink.tag)).frame(width: 4.5, height: 4.5)
+                    } else {
+                        Circle().fill(theme.accentColor).frame(width: 5.5, height: 5.5)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 7)
+                .padding(.top, 6)
             }
             .frame(height: 64)
             .clipShape(tileShape)

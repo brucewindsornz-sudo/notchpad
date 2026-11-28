@@ -479,8 +479,8 @@ extension ThemeBackdrop {
                           start: .topLeading, end: .bottomTrailing),
             pattern: .liquidGlass, patternTint: hex("#7cc4ff"), patternSecondary: hex("#b8a6ff"),
             vignette: Vignette(color: hex("#8aa4c2"), strength: 0.16),
-            edge: Edge(hairlineColor: hex("#46607a"), hairlineOpacity: 0.24, hairlineWidth: 1,
-                       glowColor: hex("#ffffff"), glowOpacity: 0.65, glowWidth: 3, topSpecular: 0.60)
+            edge: Edge(hairlineColor: hex("#385370"), hairlineOpacity: 0.28, hairlineWidth: 1,
+                       glowColor: hex("#ffffff"), glowOpacity: 0.70, glowWidth: 3, topSpecular: 0.62)
         ),
     ]
 }
@@ -656,54 +656,50 @@ private enum ThemeBackdropCanvas {
         }
     }
 
+    private static let matrixGlyphs: [String] = [
+        "0", "1", "ｱ", "ｶ", "ｻ", "ﾀ", "ﾅ", "ﾊ", "ﾏ", "ﾔ", "ﾗ", "ﾜ", "7", "9", "Z", "ｷ"
+    ]
+
     // 1. Matrix: dim falling vertical code columns, softer behind the centre text area.
     private static func drawMatrix(spec: ThemeBackdrop, in ctx: inout GraphicsContext,
                                    size: CGSize, time: Double, isMini: Bool) {
         let tint = Color(nsColor: spec.patternTint)
         let head = Color(nsColor: spec.patternSecondary)
-        let cols: Int = isMini ? 14 : 26
+        let cols: Int = isMini ? 14 : 30
         let colW: Double = Double(size.width) / Double(cols)
-        let cellH: Double = isMini ? 4.5 : 8.5
+        let cellH: Double = isMini ? 5.0 : 10.5
         let rows: Int = Int(Double(size.height) / cellH) + 2
+        let fontSize: CGFloat = isMini ? 5.0 : 9.0
 
         for c in 0..<cols {
             let xFrac: Double = (Double(c) + 0.5) / Double(cols)
             // Slightly brighter near edges, quieter behind the central reading zone.
-            let edgeBoost: Double = 0.52 + 0.48 * abs(xFrac - 0.5) * 2.0
-            let speed: Double = 2.0 + hash01(c * 17 + 3) * 2.8
-            let phase: Double = hash01(c * 31 + 7) * Double(rows + 14)
-            let trailLen: Int = isMini ? 5 : (7 + Int(hash01(c * 13 + 5) * 7.0))
-            let cycle: Double = Double(rows + trailLen + 6)
+            let edgeBoost: Double = 0.50 + 0.50 * abs(xFrac - 0.5) * 2.0
+            let speed: Double = 1.8 + hash01(c * 17 + 3) * 2.6
+            let trailLen: Int = isMini ? 4 : (8 + Int(hash01(c * 13 + 5) * 8.0))
+            let cycle: Double = Double(rows + trailLen + 3)
+            let phase: Double = hash01(c * 31 + 7) * cycle
             let headRow: Double = (phase + time * speed).truncatingRemainder(dividingBy: cycle)
-            let x: Double = Double(c) * colW + colW * 0.28
-            let glyphW: Double = max(2.0, colW * 0.44)
+            let x: Double = (Double(c) + 0.5) * colW
 
             for step in 0..<trailLen {
                 let row: Int = Int(headRow) - step
                 if row < -1 || row > rows { continue }
-                let y: Double = Double(row) * cellH
+                let y: Double = (Double(row) + 0.5) * cellH
                 let fade: Double = 1.0 - Double(step) / Double(trailLen)
                 let alpha: Double = (step == 0 ? 0.34 : (0.04 + 0.16 * fade * fade)) * edgeBoost
-                let glyphSeed: Int = c * 97 + row * 13 + Int(time * 2.0) / 3
-                let glyphKind: Int = Int(hash01(glyphSeed) * 4.0)
-                let rect = CGRect(x: x, y: y, width: glyphW, height: max(1.4, cellH * 0.56))
-                var p = Path()
-                switch glyphKind {
-                case 0:
-                    p.addRect(CGRect(x: rect.minX, y: rect.minY, width: rect.width * 0.85, height: 1.4))
-                    p.addRect(CGRect(x: rect.minX + rect.width * 0.35, y: rect.minY, width: 1.4, height: rect.height))
-                case 1:
-                    p.addRect(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: 1.3))
-                    p.addRect(CGRect(x: rect.minX, y: rect.midY, width: rect.width * 0.7, height: 1.3))
-                    p.addRect(CGRect(x: rect.maxX - 1.4, y: rect.minY, width: 1.4, height: rect.height))
-                case 2:
-                    p.addRect(CGRect(x: rect.minX + rect.width * 0.2, y: rect.minY, width: 1.4, height: rect.height))
-                    p.addRect(CGRect(x: rect.minX, y: rect.maxY - 1.4, width: rect.width * 0.8, height: 1.4))
-                default:
-                    p.addRoundedRect(in: CGRect(x: rect.minX + 1, y: rect.minY + 0.5, width: rect.width - 2, height: rect.height - 1),
-                                     cornerSize: CGSize(width: 1, height: 1))
+                let glyphSeed: Int = c * 97 + row * 13 + Int(time * 1.5) / 2
+                let idx: Int = Int(hash01(glyphSeed) * Double(matrixGlyphs.count)) % matrixGlyphs.count
+                let col = (step == 0 ? head : tint).opacity(alpha)
+                if isMini {
+                    let rect = CGRect(x: x - 1.4, y: y - 1.6, width: 2.8, height: 3.2)
+                    ctx.fill(Path(roundedRect: rect, cornerRadius: 0.7), with: .color(col))
+                } else {
+                    let label = Text(matrixGlyphs[idx])
+                        .font(.system(size: fontSize, weight: step == 0 ? .semibold : .regular, design: .monospaced))
+                        .foregroundColor(col)
+                    ctx.draw(label, at: CGPoint(x: x, y: y))
                 }
-                ctx.fill(p, with: .color((step == 0 ? head : tint).opacity(alpha)))
             }
         }
     }
@@ -756,15 +752,19 @@ private enum ThemeBackdropCanvas {
         // Outer metallic ring & glowing amber chevrons
         let outerR: Double = gateR * 0.96
         let outerRing = Path(ellipseIn: CGRect(x: cx - outerR, y: cy - outerR, width: outerR * 2, height: outerR * 2))
-        ctx.stroke(outerRing, with: .color(cyan.opacity(0.22)), lineWidth: isMini ? 1.5 : 3.0)
+        ctx.stroke(outerRing, with: .color(cyan.opacity(0.24)), lineWidth: isMini ? 1.5 : 3.0)
 
         for k in 0..<7 {
             let angle: Double = Double(k) * (Double.pi * 2.0 / 7.0) - Double.pi * 0.5
             let px: Double = cx + cos(angle) * outerR
             let py: Double = cy + sin(angle) * outerR
-            let chevSize: Double = isMini ? 2.2 : 3.8
+            let haloR: Double = isMini ? 3.5 : 7.0
+            let hg = Gradient(stops: [.init(color: amber.opacity(0.32), location: 0), .init(color: amber.opacity(0), location: 1)])
+            ctx.fill(Path(ellipseIn: CGRect(x: px - haloR, y: py - haloR, width: haloR * 2, height: haloR * 2)),
+                     with: .radialGradient(hg, center: CGPoint(x: px, y: py), startRadius: 0.5, endRadius: haloR))
+            let chevSize: Double = isMini ? 2.4 : 4.2
             let chev = Path(ellipseIn: CGRect(x: px - chevSize * 0.5, y: py - chevSize * 0.5, width: chevSize, height: chevSize))
-            ctx.fill(chev, with: .color(amber.opacity(0.55)))
+            ctx.fill(chev, with: .color(amber.opacity(0.72)))
         }
     }
 
@@ -776,26 +776,28 @@ private enum ThemeBackdropCanvas {
         let w = Double(size.width)
         let h = Double(size.height)
 
-        // Drifting cloud billows
+        // Seamless stretched cloud billows (circle scaled in context so gradient always hits 0 at edge)
         let puffs: Int = isMini ? 5 : 9
         for i in 0..<puffs {
             let drift: Double = (time * (3.0 + hash01(i * 11) * 4.0)).truncatingRemainder(dividingBy: w + 180)
             let baseX: Double = (hash01(i * 19 + 3) * (w + 180) + drift).truncatingRemainder(dividingBy: w + 180) - 90
             let isTop: Bool = (i % 2 == 0)
             let baseY: Double = isTop ? (h * (0.08 + hash01(i * 7) * 0.22)) : (h * (0.74 + hash01(i * 9) * 0.22))
-            let rx: Double = w * (0.24 + hash01(i * 29) * 0.22)
-            let ry: Double = h * (0.16 + hash01(i * 31) * 0.14)
+            let r: Double = min(w, h) * (0.28 + hash01(i * 29) * 0.22)
             let cloudGrad = Gradient(stops: [
-                .init(color: tint.opacity(isTop ? 0.10 : 0.08), location: 0.0),
+                .init(color: tint.opacity(isTop ? 0.11 : 0.08), location: 0.0),
+                .init(color: tint.opacity(0.04), location: 0.55),
                 .init(color: tint.opacity(0.0), location: 1.0)
             ])
-            let rect = CGRect(x: baseX - rx, y: baseY - ry, width: rx * 2, height: ry * 2)
-            ctx.fill(Path(ellipseIn: rect),
-                     with: .radialGradient(cloudGrad, center: CGPoint(x: baseX, y: baseY), startRadius: 2, endRadius: max(rx, ry)))
+            var g = ctx
+            g.translateBy(x: baseX, y: baseY)
+            g.scaleBy(x: 1.7, y: 0.72)
+            g.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: r * 2, height: r * 2)),
+                   with: .radialGradient(cloudGrad, center: .zero, startRadius: 1, endRadius: r))
         }
 
         // Faint slanted rain streaks
-        let drops: Int = isMini ? 8 : 18
+        let drops: Int = isMini ? 8 : 20
         for i in 0..<drops {
             let rx: Double = hash01(i * 37 + 5) * w
             let speed: Double = 36.0 + hash01(i * 13) * 28.0
@@ -957,17 +959,21 @@ private enum ThemeBackdropCanvas {
         ])
         ctx.fill(Path(bandRect), with: .linearGradient(bandGrad, startPoint: CGPoint(x: 0, y: bandRect.minY), endPoint: CGPoint(x: 0, y: bandRect.maxY)))
 
-        // Subtle curved CRT glass reflection along the upper-left
-        let glassRect = CGRect(x: -w * 0.15, y: -h * 0.55, width: w * 1.1, height: h * 0.85)
+        // Subtle curved CRT glass reflection along the upper-left (scaled circle for seamless falloff)
+        var glassCtx = ctx
+        glassCtx.translateBy(x: w * 0.35, y: -h * 0.12)
+        glassCtx.scaleBy(x: 1.65, y: 0.75)
+        let gr: Double = min(w, h) * 0.72
         let glassGrad = Gradient(stops: [
-            .init(color: cream.opacity(0.06), location: 0.0),
+            .init(color: cream.opacity(0.065), location: 0.0),
+            .init(color: cream.opacity(0.02), location: 0.55),
             .init(color: cream.opacity(0.0), location: 1.0)
         ])
-        ctx.fill(Path(ellipseIn: glassRect),
-                 with: .radialGradient(glassGrad, center: CGPoint(x: w * 0.35, y: 0), startRadius: 4, endRadius: w * 0.65))
+        glassCtx.fill(Path(ellipseIn: CGRect(x: -gr, y: -gr, width: gr * 2, height: gr * 2)),
+                      with: .radialGradient(glassGrad, center: .zero, startRadius: 2, endRadius: gr))
     }
 
-    // 7. Chalkboard: erased dusty chalk smudges, fine chalk dust speckles, faint tray line.
+    // 7. Chalkboard: seamless erased chalk smudges, fine chalk dust speckles, faint tray line.
     private static func drawChalkboard(spec: ThemeBackdrop, in ctx: inout GraphicsContext,
                                        size: CGSize, isMini: Bool) {
         let chalk = Color(nsColor: spec.patternTint)
@@ -975,24 +981,28 @@ private enum ThemeBackdropCanvas {
         let w = Double(size.width)
         let h = Double(size.height)
 
-        // Soft erased chalk cloud smudges
-        let smudges: Int = isMini ? 4 : 8
+        // Seamless soft erased chalk clouds (circle scaled in context so alpha reaches 0 before edge)
+        let smudges: Int = isMini ? 4 : 9
         for i in 0..<smudges {
             let sx: Double = (0.14 + hash01(i * 23 + 7) * 0.72) * w
-            let sy: Double = (0.16 + hash01(i * 37 + 11) * 0.68) * h
-            let rx: Double = w * (0.16 + hash01(i * 13) * 0.18)
-            let ry: Double = h * (0.10 + hash01(i * 17) * 0.14)
-            let alpha: Double = 0.03 + hash01(i * 5) * 0.035
+            let sy: Double = (0.18 + hash01(i * 37 + 11) * 0.64) * h
+            let r: Double = min(w, h) * (0.20 + hash01(i * 13) * 0.20)
+            let alpha: Double = 0.032 + hash01(i * 5) * 0.030
             let g = Gradient(stops: [
                 .init(color: chalk.opacity(alpha), location: 0.0),
+                .init(color: chalk.opacity(alpha * 0.35), location: 0.55),
                 .init(color: chalk.opacity(0.0), location: 1.0)
             ])
-            ctx.fill(Path(ellipseIn: CGRect(x: sx - rx, y: sy - ry, width: rx * 2, height: ry * 2)),
-                     with: .radialGradient(g, center: CGPoint(x: sx, y: sy), startRadius: 2, endRadius: max(rx, ry)))
+            var sc = ctx
+            sc.translateBy(x: sx, y: sy)
+            sc.rotate(by: .degrees((hash01(i * 19) - 0.5) * 28.0))
+            sc.scaleBy(x: 1.85, y: 0.78)
+            sc.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: r * 2, height: r * 2)),
+                    with: .radialGradient(g, center: .zero, startRadius: 1, endRadius: r))
         }
 
         // Fine chalk dust grains (slightly denser near bottom)
-        let specks: Int = isMini ? 24 : 85
+        let specks: Int = isMini ? 24 : 95
         for i in 0..<specks {
             let sx: Double = hash01(i * 41 + 3) * w
             let rawY: Double = hash01(i * 53 + 9)
@@ -1062,14 +1072,23 @@ private enum ThemeBackdropCanvas {
             rules.addLine(to: CGPoint(x: w - (isMini ? 4 : 14), y: y))
             y += spacing
         }
-        ctx.stroke(rules, with: .color(ruleColor.opacity(isMini ? 0.22 : 0.18)), lineWidth: isMini ? 0.6 : 0.85)
+        ctx.stroke(rules, with: .color(ruleColor.opacity(isMini ? 0.24 : 0.21)), lineWidth: isMini ? 0.6 : 0.85)
 
         // Vertical coral-red margin line
         let marginX: Double = isMini ? 13.0 : 28.0
         var margin = Path()
         margin.move(to: CGPoint(x: marginX, y: isMini ? 0 : Double(topInset)))
         margin.addLine(to: CGPoint(x: marginX, y: h))
-        ctx.stroke(margin, with: .color(marginColor.opacity(isMini ? 0.34 : 0.28)), lineWidth: isMini ? 0.8 : 1.0)
+        ctx.stroke(margin, with: .color(marginColor.opacity(isMini ? 0.36 : 0.33)), lineWidth: isMini ? 0.8 : 1.0)
+
+        // Subtle warm paper grain flecks
+        let specks: Int = isMini ? 12 : 42
+        for i in 0..<specks {
+            let sx: Double = hash01(i * 43 + 7) * w
+            let sy: Double = hash01(i * 61 + 11) * h
+            ctx.fill(Path(CGRect(x: sx, y: sy, width: 1.0, height: 1.0)),
+                     with: .color(marginColor.opacity(0.04)))
+        }
     }
 
     // 10. Blueprint: fine architectural minor grid + heavier major grid + technical inset frame.
