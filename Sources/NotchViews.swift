@@ -679,6 +679,15 @@ struct PadTextView: NSViewRepresentable {
             storedIsPlain(theme.text, theme.id)
             if ink(at: 0) != theme.ink.title { failures.append("title-ink:" + theme.id) }
         }
+        // Ink worked out for imported theme files, to check by eye in the log.
+        for theme in themes where theme.isCustom {
+            let ink = theme.ink
+            let hexes = ink.swatches.map { colour -> String in
+                let c = colour.usingColorSpace(.sRGB) ?? colour
+                return String(format: "#%02x%02x%02x", Int(c.redComponent * 255), Int(c.greenComponent * 255), Int(c.blueComponent * 255))
+            }
+            debugLog("NOTCHPAD_INK_CUSTOM name=\(theme.name) title,heading,number,link,tag,mention=\(hexes.joined(separator: ","))")
+        }
         let counts = coordinator.lastCounts
         let summary = ThemeInk.Kind.allCases.compactMap { kind in counts[kind].map { "\(kind.rawValue)=\($0)" } }
 
