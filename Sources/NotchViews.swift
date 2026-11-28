@@ -715,6 +715,7 @@ struct PadTextView: NSViewRepresentable {
         model.apply(to: tv, coordinator: coordinator)
 
         // A long note: colour only around the screen, and time one keystroke in the middle.
+        tv.allowsUndo = false
         var long = ""
         while long.utf16.count < 100_000 { long += sample }
         model._text = .constant(long)
