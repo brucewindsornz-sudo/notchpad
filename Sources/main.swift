@@ -171,6 +171,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }.store(in: &bag)
             win.center()
             settingsWindow = win
+            // The hosted form resolves its window size after its first layout. Reposition once
+            // using that real size, or a small display can start with half the form off-screen.
+            DispatchQueue.main.async { [weak win] in
+                guard let win = win, let screen = win.screen ?? NSScreen.main else { return }
+                win.contentView?.layoutSubtreeIfNeeded()
+                let area = screen.visibleFrame
+                let size = win.frame.size
+                let x = max(area.minX, area.midX - size.width / 2)
+                let y = min(area.maxY - size.height, area.midY - size.height / 2)
+                win.setFrameOrigin(NSPoint(x: x, y: y))
+            }
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)

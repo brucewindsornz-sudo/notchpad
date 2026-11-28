@@ -93,4 +93,10 @@ for fx in "${effects[@]}"; do
   fi
   stop
 done
+
+# A full live trial also exercises cancellation, the classic fallback and the complete release check.
+if [ "${FLIGHT:-all}" = all ] && [ "$FAILED" = 0 ]; then
+  tests/flight-effects.sh "$PWD/build/NotchPad.app" >out/logs/flight-release-check.log 2>&1 || FAILED=1
+  cat out/logs/flight-release-check.log
+fi
 exit "$FAILED"
