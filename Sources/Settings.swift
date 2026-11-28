@@ -325,3 +325,11 @@ final class Settings: ObservableObject {
         detached = false; offsetX = 0; offsetY = 0
     }
 }
+
+/// True when animations should be skipped because the Mac has Reduce Motion switched on. Everything that moves
+/// (closing and boomerang animations, moving theme backgrounds, previews in Settings) asks this, not AppKit.
+/// Build Macs often have Reduce Motion on, so checks can set NOTCHPAD_DEBUG_FORCE_MOTION to ignore it.
+var reduceMotionOn: Bool {
+    if notchPadDebug, ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_FORCE_MOTION"] != nil { return false }
+    return NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+}

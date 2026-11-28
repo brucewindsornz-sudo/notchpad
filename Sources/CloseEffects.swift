@@ -503,7 +503,10 @@ final class CloseEffectPlayer {
 
     /// The animation to use for the next close, or nil for the classic one.
     func effectForNextClose(override: CloseEffect? = nil) -> CloseEffect? {
-        if testNoEffects || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { return nil }
+        if testNoEffects || reduceMotionOn {
+            debugLog("NOTCHPAD_CLOSE_SKIPPED noEffects=\(testNoEffects) reduceMotion=\(reduceMotionOn)")
+            return nil
+        }
         if let o = override { return o }
         if let f = CloseEffectPlayer.forced { return f }
         return CloseEffect.resolve(setting: Settings.shared.closeEffect, theme: ThemeStore.shared.current)

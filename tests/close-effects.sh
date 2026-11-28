@@ -40,7 +40,7 @@ launch() {   # launch <log> [extra env...]
   local log=$1; shift
   stop_app
   : > "$log"
-  env -u NOTCHPAD_NO_EFFECTS NOTCHPAD_DEBUG=1 "$@" "$APP_BIN" 2> "$log" &
+  env -u NOTCHPAD_NO_EFFECTS NOTCHPAD_DEBUG=1 NOTCHPAD_DEBUG_FORCE_MOTION=1 "$@" "$APP_BIN" 2> "$log" &
   APP_PID=$!
 }
 

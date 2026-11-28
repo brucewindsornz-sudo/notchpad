@@ -43,7 +43,7 @@ list() { [ "$1" = all ] && echo "$2" || { [ "$1" = none ] && echo "" || echo "$1
 
 run() {   # run <log name> [env...]   starts the app in the background
   local name=$1; shift
-  env NOTCHPAD_DEBUG=1 NOTCHPAD_ALLOW_CAPTURE=1 "$@" "$APP" 2> "out/logs/$name.log" &
+  env NOTCHPAD_DEBUG=1 NOTCHPAD_ALLOW_CAPTURE=1 NOTCHPAD_DEBUG_FORCE_MOTION=1 "$@" "$APP" 2> "out/logs/$name.log" &
 }
 stop() { pkill -x NotchPad 2>/dev/null; sleep 1; }
 wait_log() {   # wait_log <log name> <pattern> <seconds>

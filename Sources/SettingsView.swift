@@ -486,7 +486,7 @@ struct CloseAnimationSettingsSection: View {
 
     private var motionCaption: String {
         let base = "Closing animations are skipped when Reduce motion is on (System Settings, Accessibility, Display); the pad then simply closes."
-        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        if reduceMotionOn {
             return "Reduce motion is on, so the pad closes without an animation. " + base
         }
         return base
