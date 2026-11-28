@@ -1,0 +1,376 @@
+[
+ {
+  "id": "notch",
+  "name": "Notch Black",
+  "background": "#000000",
+  "text": "#f2f2f2",
+  "accent": "#0a84ff",
+  "selection": "#2c2c2e"
+ },
+ {
+  "id": "graphite",
+  "name": "Graphite",
+  "background": "#29292b",
+  "text": "#ebebeb",
+  "accent": "#0a84ff",
+  "selection": "#3d3d40"
+ },
+ {
+  "id": "midnight",
+  "name": "Midnight Blue",
+  "background": "#0f1730",
+  "text": "#e0ebff",
+  "accent": "#6ea8ff",
+  "selection": "#22305a"
+ },
+ {
+  "id": "paper",
+  "name": "Paper",
+  "background": "#faf5e6",
+  "text": "#26241f",
+  "accent": "#e8782a",
+  "selection": "#eadfc4"
+ },
+ {
+  "id": "catppuccin-mocha",
+  "name": "Catppuccin Mocha",
+  "background": "#1e1e2e",
+  "text": "#cdd6f4",
+  "accent": "#cba6f7",
+  "selection": "#45475a"
+ },
+ {
+  "id": "catppuccin-latte",
+  "name": "Catppuccin Latte",
+  "background": "#eff1f5",
+  "text": "#4c4f69",
+  "accent": "#8839ef",
+  "selection": "#ccd0da"
+ },
+ {
+  "id": "dracula",
+  "name": "Dracula",
+  "background": "#282a36",
+  "text": "#f8f8f2",
+  "accent": "#bd93f9",
+  "selection": "#44475a"
+ },
+ {
+  "id": "nord",
+  "name": "Nord",
+  "background": "#2e3440",
+  "text": "#d8dee9",
+  "accent": "#88c0d0",
+  "selection": "#434c5e"
+ },
+ {
+  "id": "tokyo-night",
+  "name": "Tokyo Night",
+  "background": "#1a1b26",
+  "text": "#c0caf5",
+  "accent": "#7aa2f7",
+  "selection": "#33467c"
+ },
+ {
+  "id": "gruvbox-dark",
+  "name": "Gruvbox Dark",
+  "background": "#282828",
+  "text": "#ebdbb2",
+  "accent": "#fabd2f",
+  "selection": "#504945"
+ },
+ {
+  "id": "gruvbox-light",
+  "name": "Gruvbox Light",
+  "background": "#fbf1c7",
+  "text": "#3c3836",
+  "accent": "#d65d0e",
+  "selection": "#d5c4a1"
+ },
+ {
+  "id": "solarized-dark",
+  "name": "Solarized Dark",
+  "background": "#002b36",
+  "text": "#93a1a1",
+  "accent": "#268bd2",
+  "selection": "#073642"
+ },
+ {
+  "id": "solarized-light",
+  "name": "Solarized Light",
+  "background": "#fdf6e3",
+  "text": "#586e75",
+  "accent": "#268bd2",
+  "selection": "#eee8d5"
+ },
+ {
+  "id": "rose-pine",
+  "name": "Rosé Pine",
+  "background": "#191724",
+  "text": "#e0def4",
+  "accent": "#ebbcba",
+  "selection": "#403d52"
+ },
+ {
+  "id": "rose-pine-dawn",
+  "name": "Rosé Pine Dawn",
+  "background": "#faf4ed",
+  "text": "#575279",
+  "accent": "#d7827e",
+  "selection": "#dfdad9"
+ },
+ {
+  "id": "one-dark",
+  "name": "One Dark",
+  "background": "#282c34",
+  "text": "#abb2bf",
+  "accent": "#61afef",
+  "selection": "#3e4451"
+ },
+ {
+  "id": "monokai",
+  "name": "Monokai",
+  "background": "#272822",
+  "text": "#f8f8f2",
+  "accent": "#a6e22e",
+  "selection": "#49483e"
+ },
+ {
+  "id": "kanagawa",
+  "name": "Kanagawa",
+  "background": "#1f1f28",
+  "text": "#dcd7ba",
+  "accent": "#7e9cd8",
+  "selection": "#2d4f67"
+ },
+ {
+  "id": "everforest-dark",
+  "name": "Everforest Dark",
+  "background": "#2d353b",
+  "text": "#d3c6aa",
+  "accent": "#a7c080",
+  "selection": "#475258"
+ },
+ {
+  "id": "github-dark",
+  "name": "GitHub Dark",
+  "background": "#0d1117",
+  "text": "#e6edf3",
+  "accent": "#2f81f7",
+  "selection": "#1f3a5f"
+ },
+ {
+  "id": "github-light",
+  "name": "GitHub Light",
+  "background": "#ffffff",
+  "text": "#1f2328",
+  "accent": "#0969da",
+  "selection": "#ddf4ff"
+ },
+ {
+  "id": "matrix",
+  "name": "Matrix",
+  "background": "#07110b",
+  "text": "#9dffab",
+  "accent": "#48ed75",
+  "selection": "#173e24",
+  "fonts": [
+   "Menlo-Regular",
+   "Monaco"
+  ],
+  "fallback": "mono",
+  "tracking": 0.15,
+  "glow": "#3bfa73",
+  "close": "matrix",
+  "signature": true
+ },
+ {
+  "id": "stargate",
+  "name": "Stargate",
+  "background": "#091821",
+  "text": "#c8f4ff",
+  "accent": "#ffb875",
+  "selection": "#243c53",
+  "fonts": [
+   "Futura-Medium",
+   "AvenirNext-Medium"
+  ],
+  "fallback": "rounded",
+  "tracking": 0.4,
+  "glow": "#69d4ff",
+  "close": "stargate",
+  "signature": true
+ },
+ {
+  "id": "storm",
+  "name": "Storm",
+  "background": "#171c2c",
+  "text": "#e2edff",
+  "accent": "#b2b9ff",
+  "selection": "#333c57",
+  "fonts": [
+   "Avenir Next",
+   "Helvetica Neue"
+  ],
+  "fallback": "system",
+  "face": "medium",
+  "glow": "#9eaaff",
+  "close": "lightning",
+  "signature": true
+ },
+ {
+  "id": "transporter",
+  "name": "Transporter",
+  "background": "#191329",
+  "text": "#f4deff",
+  "accent": "#f7aafd",
+  "selection": "#3d2c52",
+  "fonts": [
+   "Avenir Next",
+   "Futura"
+  ],
+  "fallback": "rounded",
+  "face": "semibold",
+  "tracking": 0.3,
+  "glow": "#dc79ff",
+  "close": "teleport",
+  "signature": true
+ },
+ {
+  "id": "singularity",
+  "name": "Singularity",
+  "background": "#100b16",
+  "text": "#fde8ee",
+  "accent": "#ff946e",
+  "selection": "#3b263b",
+  "fonts": [
+   "Baskerville",
+   "Georgia"
+  ],
+  "fallback": "serif",
+  "face": "regular",
+  "scale": 1.13,
+  "leading": 3,
+  "close": "blackHole",
+  "signature": true
+ },
+ {
+  "id": "phosphor",
+  "name": "Phosphor",
+  "background": "#1c1207",
+  "text": "#ffda94",
+  "accent": "#ffb454",
+  "selection": "#493014",
+  "fonts": [
+   "Monaco",
+   "Menlo-Regular"
+  ],
+  "fallback": "mono",
+  "tracking": 0.25,
+  "glow": "#ffad47",
+  "close": "tv",
+  "signature": true
+ },
+ {
+  "id": "chalkboard",
+  "name": "Chalkboard",
+  "background": "#192a25",
+  "text": "#f0f2dc",
+  "accent": "#bfdcaa",
+  "selection": "#374d44",
+  "fonts": [
+   "ChalkboardSE-Regular",
+   "MarkerFelt-Thin"
+  ],
+  "fallback": "rounded",
+  "scale": 1.1,
+  "leading": 3,
+  "close": "dust",
+  "signature": true
+ },
+ {
+  "id": "ember-typewriter",
+  "name": "Ember Typewriter",
+  "background": "#fff1d8",
+  "text": "#352417",
+  "accent": "#963b1e",
+  "selection": "#e4c5a0",
+  "fonts": [
+   "AmericanTypewriter",
+   "CourierNewPSMT"
+  ],
+  "fallback": "serif",
+  "leading": 3,
+  "close": "burn",
+  "signature": true
+ },
+ {
+  "id": "field-notes",
+  "name": "Field Notes",
+  "background": "#faf1db",
+  "text": "#332f22",
+  "accent": "#725024",
+  "selection": "#dfd0a9",
+  "fonts": [
+   "Noteworthy-Bold",
+   "ChalkboardSE-Regular"
+  ],
+  "fallback": "rounded",
+  "scale": 1.15,
+  "leading": 4,
+  "close": "dust",
+  "signature": true
+ },
+ {
+  "id": "blueprint",
+  "name": "Blueprint",
+  "background": "#0e2640",
+  "text": "#d0efff",
+  "accent": "#79d8ff",
+  "selection": "#294664",
+  "fonts": [
+   "Menlo",
+   "Monaco"
+  ],
+  "fallback": "mono",
+  "face": "regular",
+  "tracking": 0.45,
+  "close": "teleport",
+  "signature": true
+ },
+ {
+  "id": "neon-district",
+  "name": "Neon District",
+  "background": "#201025",
+  "text": "#ffd9ec",
+  "accent": "#70e8e1",
+  "selection": "#492346",
+  "fonts": [
+   "Futura-MediumItalic",
+   "AvenirNext-Italic"
+  ],
+  "fallback": "rounded",
+  "tracking": 0.25,
+  "glow": "#ff73b8",
+  "close": "lightning",
+  "signature": true
+ },
+ {
+  "id": "morning-edition",
+  "name": "Morning Edition",
+  "background": "#f8f7f1",
+  "text": "#282924",
+  "accent": "#71402e",
+  "selection": "#dbd8ca",
+  "fonts": [
+   "Georgia",
+   "Baskerville"
+  ],
+  "fallback": "serif",
+  "face": "regular",
+  "scale": 1.06,
+  "leading": 3,
+  "close": "dust",
+  "signature": true
+ }
+]
