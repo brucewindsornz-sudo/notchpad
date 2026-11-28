@@ -138,7 +138,7 @@ for fx in "${EFFECTS[@]}"; do
     NOTCHPAD_DEBUG_CLOSE="$fx" \
     NOTCHPAD_DEBUG_CLOSE_AFTER=3
   wait_for "$LOG_FX" "^NOTCHPAD_CLOSE effect=${fx}( |$)" 15
-  wait_for "$LOG_FX" "^NOTCHPAD_CLOSE_DONE effect=${fx}( |$)" 15
+  wait_for "$LOG_FX" "^NOTCHPAD_CLOSE_DONE effect=${fx} frames=[1-9][0-9]* seconds=[0-9.]+ worst_ms=[0-9.]+ avg_ms=[0-9.]+$" 15
   kill -0 "$APP_PID" 2>/dev/null || fail "NotchPad crashed after closing animation '$fx'"
   stop_app
   echo "OK: $fx started and finished cleanly"

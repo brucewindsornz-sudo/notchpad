@@ -128,7 +128,7 @@ for fx in "${EFFECTS[@]}"; do
   LOG="$LOG_DIR/live-$fx.log"
   start_floating "$LOG" "$fx"
   wait_for "$LOG" "^NOTCHPAD_FLIGHT effect=$fx distance=[1-9][0-9]*$" 15
-  wait_for "$LOG" "^NOTCHPAD_FLIGHT_DONE effect=$fx frames=[1-9][0-9]* seconds=" 15
+  wait_for "$LOG" "^NOTCHPAD_FLIGHT_DONE effect=$fx frames=[1-9][0-9]* seconds=[0-9.]+ worst_ms=[0-9.]+ avg_ms=[0-9.]+$" 15
   check_docked "$LOG" effect
   stop
   echo "OK: $fx started, played and landed"

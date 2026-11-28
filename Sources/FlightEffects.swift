@@ -212,19 +212,17 @@ struct FlightScene {
     }
 }
 
-var flightDebugDraws = 0
-
 struct FlightEffectCanvas: View {
     let scene: FlightScene
     let t: Double
     var fit = false
     var classicPreview = false
     var visible: CGRect? = nil
-    var countLiveFrames = false
+    var timing: EffectDrawTiming? = nil
 
     var body: some View {
         Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, viewSize in
-            if notchPadDebug && countLiveFrames { flightDebugDraws += 1 }
+            timing?.record()
             var c = context
             let area = visible ?? CGRect(origin: .zero, size: scene.size)
             if fit, area.width > 0, area.height > 0 {
@@ -278,6 +276,7 @@ private struct FlightRun {
     let scene: FlightScene
     let start: Date
     let frozen: Double?
+    let timing: EffectDrawTiming?
 
     func progress(at date: Date) -> Double {
         frozen ?? clamp01(date.timeIntervalSince(start) / scene.duration)
@@ -306,10 +305,10 @@ private struct FlightOverlayStage: View {
                 }
             case .fly(let run):
                 if let t = run.frozen {
-                    FlightEffectCanvas(scene: run.scene, t: t, countLiveFrames: true)
+                    FlightEffectCanvas(scene: run.scene, t: t)
                 } else {
                     TimelineView(.animation) { timeline in
-                        FlightEffectCanvas(scene: run.scene, t: run.progress(at: timeline.date), countLiveFrames: true)
+                        FlightEffectCanvas(scene: run.scene, t: run.progress(at: timeline.date), timing: run.timing)
                     }
                 }
             case nil:
@@ -402,14 +401,16 @@ final class FlightEffectPlayer {
     func play(_ scene: FlightScene, token: Int) {
         guard isCurrent(token) else { return }
         let frozen = Self.frozen
-        let drawsBefore = flightDebugDraws
-        model.contents = .fly(FlightRun(scene: scene, start: Date(), frozen: frozen))
+        let timing = notchPadDebug && frozen == nil ? EffectDrawTiming() : nil
+        model.contents = .fly(FlightRun(scene: scene, start: Date(), frozen: frozen, timing: timing))
         debugLog("NOTCHPAD_FLIGHT effect=\(scene.effect.rawValue) distance=\(Int(FlightScene.distance(scene.from, scene.to)))")
         if frozen == nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + scene.duration + 0.035) { [weak self] in
                 guard let self = self, self.isCurrent(token) else { return }
                 self.finish()
-                debugLog("NOTCHPAD_FLIGHT_DONE effect=\(scene.effect.rawValue) frames=\(flightDebugDraws - drawsBefore) seconds=\(scene.duration)")
+                if let timing = timing {
+                    debugLog("NOTCHPAD_FLIGHT_DONE effect=\(scene.effect.rawValue) \(timing.logFields(seconds: scene.duration))")
+                }
             }
         }
     }

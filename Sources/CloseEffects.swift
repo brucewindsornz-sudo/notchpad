@@ -247,8 +247,31 @@ enum CloseEffect: String, CaseIterable, Identifiable {
     }
 }
 
-/// Build checks: how many frames have been drawn, to compare how heavy the animations are.
-var closeDebugDraws = 0
+/// One live overlay's Canvas draw cadence. Use a monotonic clock so changing the
+/// system time can't turn an ordinary frame gap into apparent jank.
+final class EffectDrawTiming {
+    private var previous: CFTimeInterval?
+    private var frames = 0
+    private var total: CFTimeInterval = 0
+    private var worst: CFTimeInterval = 0
+
+    func record() {
+        let now = CACurrentMediaTime()
+        if let previous = previous {
+            let interval = max(0, now - previous)
+            total += interval
+            worst = max(worst, interval)
+        }
+        previous = now
+        frames += 1
+    }
+
+    func logFields(seconds: Double) -> String {
+        let average = frames > 1 ? total / Double(frames - 1) : 0
+        let gaps = String(format: "worst_ms=%.1f avg_ms=%.1f", worst * 1000, average * 1000)
+        return "frames=\(frames) seconds=\(seconds) \(gaps)"
+    }
+}
 
 // MARK: - A run: the fixed facts about one close
 
@@ -401,10 +424,11 @@ struct CloseEffectCanvas: View {
     let scene: CloseScene
     let t: Double
     var visible: CGRect? = nil
+    var timing: EffectDrawTiming? = nil
 
     var body: some View {
         Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, viewSize in
-            closeDebugDraws += 1
+            timing?.record()
             let image = context.resolve(Image(decorative: scene.picture, scale: scene.pictureScale))
             let frame = scene.frame(t: t, image: image)
             if frame.t >= 1 { return }
@@ -432,6 +456,7 @@ struct CloseRun {
     let start: Date
     /// Build checks: hold the animation at this point.
     let frozen: Double?
+    let timing: EffectDrawTiming?
     func progress(at date: Date) -> Double {
         if let f = frozen { return f }
         return clamp01(date.timeIntervalSince(start) / scene.duration)
@@ -452,7 +477,7 @@ private struct CloseEffectStage: View {
                     CloseEffectCanvas(scene: run.scene, t: run.progress(at: run.start))
                 } else {
                     TimelineView(.animation) { timeline in
-                        CloseEffectCanvas(scene: run.scene, t: run.progress(at: timeline.date))
+                        CloseEffectCanvas(scene: run.scene, t: run.progress(at: timeline.date), timing: run.timing)
                     }
                 }
             }
@@ -558,10 +583,11 @@ final class CloseEffectPlayer {
         counter += 1
         let id = counter
         let frozen = CloseEffectPlayer.frozen
+        let timing = notchPadDebug && frozen == nil ? EffectDrawTiming() : nil
         win.level = NSWindow.Level(rawValue: level.rawValue + 1)
         win.sharingType = sharing
         win.setFrame(frame, display: false)
-        model.run = CloseRun(id: id, scene: scene, start: Date(), frozen: frozen)
+        model.run = CloseRun(id: id, scene: scene, start: Date(), frozen: frozen, timing: timing)
         isPlaying = true
         win.orderFrontRegardless()
         win.displayIfNeeded()
@@ -575,12 +601,13 @@ final class CloseEffectPlayer {
             }
         }
         debugLog("NOTCHPAD_CLOSE effect=\(effect.rawValue) snapshot=\(snap) floating=\(floating) private=\(win.sharingType == .none)")
-        let drawsBefore = closeDebugDraws
         if frozen == nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + scene.duration + 0.03) { [weak self] in
                 guard let self = self, self.counter == id, self.isPlaying else { return }
                 self.finish()
-                debugLog("NOTCHPAD_CLOSE_DONE effect=\(effect.rawValue) frames=\(closeDebugDraws - drawsBefore) seconds=\(scene.duration)")
+                if let timing = timing {
+                    debugLog("NOTCHPAD_CLOSE_DONE effect=\(effect.rawValue) \(timing.logFields(seconds: scene.duration))")
+                }
             }
         }
         return true

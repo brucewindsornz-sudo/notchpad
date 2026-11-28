@@ -153,7 +153,9 @@ if [ "$CLOSE_CHECKS" = 1 ]; then
 fi
 
 echo "== what the app said"
-grep -h "NOTCHPAD_CLOSE\|NOTCHPAD_FLIGHT\|NOTCHPAD_THEME\|NOTCHPAD_BOOMERANG" out/logs/*.log 2>/dev/null | sort | uniq -c | head -80
+grep -hE '^NOTCHPAD_(CLOSE|FLIGHT)_DONE ' out/logs/*.log 2>/dev/null | sort
+grep -h "NOTCHPAD_CLOSE\|NOTCHPAD_FLIGHT\|NOTCHPAD_THEME\|NOTCHPAD_BOOMERANG" out/logs/*.log 2>/dev/null |
+  grep -vE '^NOTCHPAD_(CLOSE|FLIGHT)_DONE ' | sort | uniq -c | head -80
 ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i notchpad | head && FAILED=1
 cp ~/Library/Logs/DiagnosticReports/NotchPad* out/logs/ 2>/dev/null
 [ "$FAILED" = 0 ] && echo "Trial finished" || { echo "Trial finished WITH PROBLEMS (see above)"; exit 1; }
