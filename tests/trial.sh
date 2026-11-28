@@ -11,6 +11,7 @@
 #   float-shots    take those screenshots with the pad floating as well
 #   settings=a,b   screenshots of Settings scrolled to these sections (theme, closeAnimation, flightAnimation ...)
 #   live           play each listed closing/boomerang animation for real, and report how many frames it drew
+#   close-checks   also run the full closing animation and interruption checks
 #
 # Frames land in out/frames/<theme>[-floating]/<animation>-NNN.png, screenshots in out/shots/.
 set -uo pipefail
@@ -22,7 +23,7 @@ P="$C/Library/Preferences/com.newzeebuild.notchpad"
 mkdir -p out/frames out/shots out/logs
 
 LINE=$(printf '%s\n' "${TRIAL_MSG:-}" | grep -E '^[[:space:]]*fx:' | head -1 | sed 's/^[[:space:]]*fx://')
-CLOSE=all; FLIGHT=none; FRAMES=12; THEMES=notch; FLOATING=0; SHOTS=""; FLOATSHOTS=0; SETTINGS=""; LIVE=0
+CLOSE=all; FLIGHT=none; FRAMES=12; THEMES=notch; FLOATING=0; SHOTS=""; FLOATSHOTS=0; SETTINGS=""; LIVE=0; CLOSE_CHECKS=0
 for word in $LINE; do
   case "$word" in
     close=*) CLOSE=${word#close=} ;;
@@ -34,6 +35,7 @@ for word in $LINE; do
     float-shots) FLOATSHOTS=1 ;;
     settings=*) SETTINGS=${word#settings=} ;;
     live) LIVE=1 ;;
+    close-checks) CLOSE_CHECKS=1 ;;
   esac
 done
 echo "Trial: close=$CLOSE flight=$FLIGHT frames=$FRAMES themes=$THEMES floating=$FLOATING shots=$SHOTS settings=$SETTINGS live=$LIVE"
@@ -143,6 +145,11 @@ if [ "$LIVE" = 1 ]; then
   if [ "$FLIGHT" != none ] && [ -x tests/trial-flight.sh ]; then
     FLIGHT="$FLIGHT" THEME="$first_theme" tests/trial-flight.sh || FAILED=1
   fi
+fi
+
+if [ "$CLOSE_CHECKS" = 1 ]; then
+  tests/close-effects.sh "$PWD/build/NotchPad.app" >out/logs/close-release-check.log 2>&1 || FAILED=1
+  cat out/logs/close-release-check.log
 fi
 
 echo "== what the app said"

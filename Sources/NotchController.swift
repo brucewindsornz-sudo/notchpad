@@ -96,6 +96,7 @@ final class NotchController: ObservableObject {
     private var hoverOpenWork: DispatchWorkItem?
     private var leaveWork: DispatchWorkItem?
     private weak var previousApp: NSRunningApplication?
+    private var classicCloseFade: Timer?
 
     private let margin: CGFloat = 40
     static let minSize = CGSize(width: 320, height: 170)
@@ -175,17 +176,15 @@ final class NotchController: ObservableObject {
         settings.$size.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.layout() } }.store(in: &bag)
         settings.$hideFromCapture.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.applyPrivacy() } }.store(in: &bag)
         settings.$blurWhenAway.dropFirst().sink { _ in
-            DispatchQueue.main.async { FlightEffectPlayer.shared.cancel() }
+            DispatchQueue.main.async {
+                FlightEffectPlayer.shared.cancel()
+                CloseEffectPlayer.shared.cancel(reason: "blur")
+            }
         }.store(in: &bag)
 
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.screenChanged() }
-        let lockNow: (Notification) -> Void = { [weak self] _ in
-            FlightEffectPlayer.shared.cancel()
-            if self?.settings.clipboardClearOnLock == true { ClipboardGuard.shared.clearIfOurs() }
-            LockManager.shared.lock()
-            if self?.state == .expanded, self?.settings.keepOpen == false { self?.collapse() }
-        }
+        let lockNow: (Notification) -> Void = { [weak self] _ in self?.sessionLocked() }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main, using: lockNow)
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main, using: lockNow)
         DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main, using: lockNow)
@@ -213,6 +212,9 @@ final class NotchController: ObservableObject {
     /// A display was added, removed or rescaled: drop any drag or pull in flight (its numbers belong
     /// to the old screen) and lay the pad out again for the new one.
     private func screenChanged() {
+        CloseEffectPlayer.shared.cancel(reason: "screen")
+        hoverOpenWork?.cancel(); hoverOpenWork = nil
+        if state == .hovering { state = .collapsed }
         if moveStartMouse != nil { ignoreDragUntilUp = NSEvent.pressedMouseButtons & 1 != 0 }
         moveStartMouse = nil
         if let mon = moveMonitor { NSEvent.removeMonitor(mon); moveMonitor = nil }
@@ -225,6 +227,7 @@ final class NotchController: ObservableObject {
 
     /// Escape hatch: back in the notch, default size, not pinned, closed.
     func resetPosition() {
+        CloseEffectPlayer.shared.cancel(reason: "reset")
         cancelMove(); resizeStartMouse = nil
         settings.resetLayout()
         settings.keepOpen = false; settings.wasOpen = false
@@ -297,6 +300,7 @@ final class NotchController: ObservableObject {
     func layout(preservingFlight: Bool = false) {
         if preservingFlight && FlightEffectPlayer.shared.isPlaying { return }
         FlightEffectPlayer.shared.cancel()
+        cancelClassicCloseFade()
         notch = NotchInfo.current()
         // A drag or a magnet pull is moving the window; it saves its own position when it lands.
         if moveStartMouse != nil || springTimer != nil { layoutPending = true; return }
@@ -732,15 +736,37 @@ final class NotchController: ObservableObject {
 
     private func applyPrivacy() {
         FlightEffectPlayer.shared.cancel()
+        CloseEffectPlayer.shared.cancel(reason: "privacy")
         let testCapture = ProcessInfo.processInfo.environment["NOTCHPAD_ALLOW_CAPTURE"] != nil   // build checks only
         panel.sharingType = settings.hideFromCapture && !testCapture ? .none : .readOnly
+    }
+
+    private func sessionLocked() {
+        FlightEffectPlayer.shared.cancel()
+        CloseEffectPlayer.shared.cancel(reason: "lock")
+        hoverOpenWork?.cancel(); hoverOpenWork = nil
+        leaveWork?.cancel(); leaveWork = nil
+        if settings.clipboardClearOnLock { ClipboardGuard.shared.clearIfOurs() }
+        LockManager.shared.lock()
+        if state != .expanded || !settings.keepOpen {
+            collapse(restoreFocus: false, withAnimation: false)
+        }
+    }
+
+    func stopPresentationsForQuit() {
+        FlightEffectPlayer.shared.cancel()
+        CloseEffectPlayer.shared.cancel(reason: "quit")
+        cancelClassicCloseFade()
     }
 
     // MARK: Mouse
 
     private func mouseMoved() {
+        pointerMoved(to: NSEvent.mouseLocation)
+    }
+
+    private func pointerMoved(to p: NSPoint) {
         if FlightEffectPlayer.shared.isPlaying { return }
-        let p = NSEvent.mouseLocation
         switch state {
         case .collapsed:
             if hotRect.contains(p) { enterHover() }
@@ -798,7 +824,9 @@ final class NotchController: ObservableObject {
 
     func expand(byHover: Bool) {
         FlightEffectPlayer.shared.cancel()
-        hoverOpenWork?.cancel()
+        CloseEffectPlayer.shared.cancel(reason: byHover ? "hover" : "open")
+        cancelClassicCloseFade()
+        hoverOpenWork?.cancel(); hoverOpenWork = nil
         leaveWork?.cancel(); leaveWork = nil
         openedByHover = byHover
         if settings.lockEnabled,
@@ -809,7 +837,6 @@ final class NotchController: ObservableObject {
         if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
         mouseInside = true
         cancelMove()
-        CloseEffectPlayer.shared.cancel()
         closingWithEffect = false
         panel.alphaValue = 1
         state = .expanded
@@ -822,11 +849,18 @@ final class NotchController: ObservableObject {
         if LockManager.shared.isLocked { LockManager.shared.unlock() }
     }
 
-    func collapse(restoreFocus: Bool = true) {
+    func collapse(restoreFocus: Bool = true, withAnimation: Bool = true) {
+        let wasFlying = FlightEffectPlayer.shared.isPlaying
         FlightEffectPlayer.shared.cancel()
-        guard state == .expanded else { state = .collapsed; return }
+        hoverOpenWork?.cancel(); hoverOpenWork = nil
+        guard state == .expanded else {
+            state = .collapsed
+            if !withAnimation { layout() }
+            return
+        }
         leaveWork?.cancel(); leaveWork = nil
         NoteStore.shared.saveNow()
+        let wasMoving = springTimer != nil || moveStartMouse != nil
         cancelMove(); resizeStartMouse = nil
         settings.wasOpen = false
         let wasFloating = showsDetached
@@ -834,33 +868,25 @@ final class NotchController: ObservableObject {
         var animated = false
         let override = closeEffectOverride
         closeEffectOverride = nil
-        if let effect = CloseEffectPlayer.shared.effectForNextClose(override: override) {
+        if withAnimation, let effect = CloseEffectPlayer.shared.effectForNextClose(override: override) {
             let padRect = expandedRect
             // A pad that's blurred because the pointer is away, or mid-flight, isn't photographed: the animation
             // then uses a plain pad in the theme's colour.
-            let hidden = (settings.blurWhenAway && !mouseInside) || springTimer != nil
+            let hidden = (settings.blurWhenAway && !mouseInside) || wasMoving || wasFlying || LockManager.shared.isLocked
             let picture = hidden ? nil : CloseEffectPlayer.snapshot(of: panel, padRect: padRect)
             animated = CloseEffectPlayer.shared.play(effect, picture: picture, padRect: padRect,
                                                      sinkRect: closeSinkRect(floating: wasFloating, padRect: padRect),
                                                      floating: wasFloating, screen: notch.screenFrame,
                                                      level: panel.level, sharing: panel.sharingType)
         }
-        closingWithEffect = animated
+        closingWithEffect = animated || !withAnimation
         state = .collapsed
         debugLog("NOTCHPAD_STATE=collapsed")
         if animated {
             // The animation is drawn over the spot; the pad itself goes straight home.
             layout()
-        } else if wasFloating {
-            // Fade out where it floats, then tuck back into the notch.
-            NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = 0.15
-                panel.animator().alphaValue = 0
-            }, completionHandler: { [weak self] in
-                guard let self = self else { return }
-                if self.state != .expanded { self.layout() }
-                if !FlightEffectPlayer.shared.isPlaying { self.panel.alphaValue = 1 }
-            })
+        } else if wasFloating && withAnimation {
+            startClassicCloseFade()
         } else {
             layout()
         }
@@ -873,6 +899,59 @@ final class NotchController: ObservableObject {
         }
         // Keep the panel visible above the menu bar.
         panel.orderFrontRegardless()
+    }
+
+    private func startClassicCloseFade() {
+        cancelClassicCloseFade()
+        let started = CACurrentMediaTime()
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+            guard let self = self, self.classicCloseFade === timer else { timer.invalidate(); return }
+            let progress = (CACurrentMediaTime() - started) / 0.15
+            if progress >= 1 || self.state == .expanded {
+                // End the fade and move the closed pad back in a single main-loop turn.
+                self.layout()
+            } else {
+                self.panel.alphaValue = 1 - clamp01(progress)
+            }
+        }
+        classicCloseFade = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func cancelClassicCloseFade() {
+        guard let timer = classicCloseFade else { return }
+        timer.invalidate()
+        classicCloseFade = nil
+        panel.alphaValue = 1
+    }
+
+    /// Drives the same handlers as the real events without sleeping or locking the test Mac.
+    func debugCloseStep(_ step: String) {
+        guard notchPadDebug else { return }
+        switch step {
+        case "toggle": toggle()
+        case "hover":
+            settings.openOnHover = true
+            pointerMoved(to: NSPoint(x: notch.rect.midX, y: notch.rect.midY))
+        case "flight": boomerang()
+        case "lock":
+            NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+        case "screen":
+            NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        case "private": settings.hideFromCapture = true
+        case "public": settings.hideFromCapture = false
+        case "pin": settings.keepOpen = true
+        case "quit": NSApp.terminate(nil)
+        default:
+            if step.hasPrefix("probe-") { debugCloseProbe(String(step.dropFirst(6))) }
+        }
+    }
+
+    func debugCloseProbe(_ label: String) {
+        guard notchPadDebug else { return }
+        let visible = panel.isVisible && panel.alphaValue >= 0.99
+        let atHome = abs(panel.frame.midX - notch.rect.midX) < 1 && abs(panel.frame.maxY - notch.screenFrame.maxY) < 1
+        debugLog("NOTCHPAD_CLOSE_PROBE stage=\(label) state=\(state) visible=\(visible) overlay=\(CloseEffectPlayer.shared.overlayVisible) floating=\(showsDetached) home=\(atHome) pinned=\(settings.keepOpen) wasOpen=\(settings.wasOpen) private=\(panel.sharingType == .none) interactive=\(!panel.ignoresMouseEvents)")
     }
 
     /// Where a closing pad ends up, in screen coordinates: the notch, or its own centre when it floats.

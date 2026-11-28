@@ -58,6 +58,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_OPEN"] != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.controller.expand(byHover: false) }
             }
+            if let sequence = ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_CLOSE_SEQUENCE"] {
+                for item in sequence.split(separator: ",") {
+                    let parts = item.split(separator: ":", maxSplits: 1)
+                    guard parts.count == 2, let after = Double(parts[0]), after.isFinite, after >= 0 else { continue }
+                    let step = String(parts[1])
+                    DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.controller.debugCloseStep(step) }
+                }
+            }
         }
 
         hotKey = HotKey { [weak self] in self?.controller.toggle() }
@@ -84,7 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        FlightEffectPlayer.shared.cancel()
+        controller.stopPresentationsForQuit()
+        if ProcessInfo.processInfo.environment["NOTCHPAD_DEBUG_CLOSE_SEQUENCE"] != nil {
+            controller.debugCloseProbe("quit")
+        }
         NoteStore.shared.saveNow()
         if settings.clipboardClearOnLock { ClipboardGuard.shared.clearIfOurs() }
     }

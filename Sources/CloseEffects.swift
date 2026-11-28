@@ -490,6 +490,7 @@ final class CloseEffectPlayer {
     private var window: CloseEffectWindow?
     private var counter = 0
     private(set) var isPlaying = false
+    var overlayVisible: Bool { window?.isVisible == true }
 
     private static let environment = ProcessInfo.processInfo.environment
     private static var forced: CloseEffect? {
@@ -497,7 +498,7 @@ final class CloseEffectPlayer {
         return CloseEffect(rawValue: id)
     }
     private static var frozen: Double? {
-        guard notchPadDebug, let raw = environment["NOTCHPAD_DEBUG_CLOSE_FREEZE"], let v = Double(raw) else { return nil }
+        guard notchPadDebug, let raw = environment["NOTCHPAD_DEBUG_CLOSE_FREEZE"], let v = Double(raw), v.isFinite else { return nil }
         return clamp01(v)
     }
 
@@ -529,11 +530,13 @@ final class CloseEffectPlayer {
     @discardableResult
     func play(_ effect: CloseEffect, picture: (image: CGImage, scale: CGFloat)?, padRect: NSRect, sinkRect: NSRect,
               floating: Bool, screen: NSRect, level: NSWindow.Level, sharing: NSWindow.SharingType) -> Bool {
+        cancel(reason: "replace")
+        guard screen.width > 0, screen.height > 0, padRect.width > 1, padRect.height > 1,
+              screen.insetBy(dx: -1, dy: -1).contains(padRect) else { return false }
         let bleed = CloseScene.bleed
-        // The canvas: the pad plus room around it, but never above the top of the screen.
-        let top: CGFloat = floating ? min(padRect.maxY + bleed, max(screen.maxY, padRect.maxY)) : padRect.maxY
-        let frame = NSRect(x: padRect.minX - bleed, y: padRect.minY - bleed,
-                           width: padRect.width + 2 * bleed, height: top - (padRect.minY - bleed))
+        // Keep the pad's original geometry and clip only the effect's extra drawing room.
+        let frame = padRect.insetBy(dx: -bleed, dy: -bleed).intersection(screen)
+        guard !frame.isEmpty else { return false }
         func local(_ r: NSRect) -> CGRect {
             CGRect(x: r.minX - frame.minX, y: frame.maxY - r.maxY, width: r.width, height: r.height)
         }
@@ -571,7 +574,7 @@ final class CloseEffectPlayer {
                 debugLog("NOTCHPAD_CLOSE_SNAPSHOT file=\(file.path)")
             }
         }
-        debugLog("NOTCHPAD_CLOSE effect=\(effect.rawValue) snapshot=\(snap) floating=\(floating)")
+        debugLog("NOTCHPAD_CLOSE effect=\(effect.rawValue) snapshot=\(snap) floating=\(floating) private=\(win.sharingType == .none)")
         let drawsBefore = closeDebugDraws
         if frozen == nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + scene.duration + 0.03) { [weak self] in
@@ -584,16 +587,17 @@ final class CloseEffectPlayer {
     }
 
     /// Stops and hides the animation at once (the pad is opening again, or the app is going away).
-    func cancel() {
-        guard isPlaying else { return }
+    func cancel(reason: String) {
+        guard isPlaying || model.run != nil || overlayVisible else { return }
         counter += 1
         finish()
+        debugLog("NOTCHPAD_CLOSE_CANCEL reason=\(reason) overlay=\(overlayVisible)")
     }
 
     private func finish() {
         isPlaying = false
-        model.run = nil
         window?.orderOut(nil)
+        model.run = nil
     }
 
     // MARK: Build checks
