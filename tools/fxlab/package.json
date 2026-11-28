@@ -1,0 +1,10 @@
+{
+  "name": "fxlab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JavaScript prototyping harness for NotchPad's closing and boomerang animations",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}
