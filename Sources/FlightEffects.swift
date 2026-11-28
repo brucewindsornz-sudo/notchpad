@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 
 /// Everything a boomerang animation gets for one frame. Coordinates are points, origin top-left, y downward.
 struct FlightFrame {
@@ -88,7 +89,7 @@ enum FlightEffect: String, CaseIterable, Identifiable {
         case .warp: return "rays"
         case .swarm: return "circle.grid.3x3.fill"
         case .bolt: return "bolt.fill"
-        case .comet: return "comet"
+        case .comet: return "sparkle"
         }
     }
 
@@ -108,7 +109,8 @@ enum FlightEffect: String, CaseIterable, Identifiable {
     private static let themeEffects: [String: FlightEffect] = [
         "matrix": .codestream, "stargate": .gate, "storm": .bolt, "transporter": .beam,
         "singularity": .comet, "blueprint": .beam, "neon-district": .warp,
-        "chalkboard": .swarm, "field-notes": .swarm
+        "chalkboard": .swarm, "field-notes": .swarm,
+        "synthwave": .warp, "aurora": .comet, "deep-sea": .swarm
     ]
 
     static func resolve(setting: String, theme: PadThemeSpec) -> FlightEffect? {
@@ -213,6 +215,7 @@ struct FlightEffectCanvas: View {
     let scene: FlightScene
     let t: Double
     var fit = false
+    var classicPreview = false
 
     var body: some View {
         Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, viewSize in
@@ -230,6 +233,8 @@ struct FlightEffectCanvas: View {
                 frame.drawFrom(c)
             } else if frame.t >= 1 {
                 frame.drawTo(c)
+            } else if classicPreview {
+                drawSampleFlight(frame, c, bowScale: 0)
             } else {
                 scene.renderer.draw(frame, c)
             }
@@ -240,9 +245,9 @@ struct FlightEffectCanvas: View {
 }
 
 /// Temporary example shared by the eight placeholder renderers.
-func drawSampleFlight(_ f: FlightFrame, _ ctx: GraphicsContext) {
+func drawSampleFlight(_ f: FlightFrame, _ ctx: GraphicsContext, bowScale: Double = 1) {
     let t = smoothstep(0, 1, f.t)
-    let bow = sin(.pi * t) * min(100, f.distance * 0.25)
+    let bow = sin(.pi * t) * min(100, f.distance * 0.25) * bowScale
     let x = lerp(Double(f.from.minX), Double(f.to.minX), t) + bow
     let y = lerp(Double(f.from.minY), Double(f.to.minY), t)
     let w = lerp(Double(f.from.width), Double(f.to.width), t)
@@ -250,6 +255,186 @@ func drawSampleFlight(_ f: FlightFrame, _ ctx: GraphicsContext) {
     let rect = CGRect(x: x, y: y, width: w, height: h)
     f.drawFrom(ctx, in: rect, opacity: 1 - t)
     f.drawTo(ctx, in: rect, opacity: t)
+}
+
+// MARK: - Player
+
+private struct FlightRun {
+    let scene: FlightScene
+    let start: Date
+    let frozen: Double?
+
+    func progress(at date: Date) -> Double {
+        frozen ?? clamp01(date.timeIntervalSince(start) / scene.duration)
+    }
+}
+
+private final class FlightOverlayModel: ObservableObject {
+    enum Contents {
+        case hold(FlightScene.Picture, CGRect)
+        case fly(FlightRun)
+    }
+
+    @Published var contents: Contents?
+}
+
+private struct FlightOverlayStage: View {
+    @ObservedObject var model: FlightOverlayModel
+
+    var body: some View {
+        Group {
+            switch model.contents {
+            case .hold(let picture, let rect):
+                Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, _ in
+                    let image = context.resolve(Image(decorative: picture.image, scale: picture.scale))
+                    context.draw(image, in: rect)
+                }
+            case .fly(let run):
+                if let t = run.frozen {
+                    FlightEffectCanvas(scene: run.scene, t: t)
+                } else {
+                    TimelineView(.animation) { timeline in
+                        FlightEffectCanvas(scene: run.scene, t: run.progress(at: timeline.date))
+                    }
+                }
+            case nil:
+                Color.clear
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+final class FlightEffectPlayer {
+    static let shared = FlightEffectPlayer()
+
+    struct Route {
+        let bounds: CGRect
+        let from: CGRect
+        let to: CGRect
+        let notch: CGRect
+
+        init?(from: NSRect, to: NSRect, notch: NSRect, screen: NSRect) {
+            // A close-by return is better as a short, ordinary pull. Clip the canvas, not the pads,
+            // to the display that owns the notch. Coordinates below here are top-left, y downward.
+            guard screen.width > 0, screen.height > 0, from.width > 1, to.width > 1,
+                  from.height > 1, to.height > 1, FlightScene.distance(from, to) >= 54 else { return nil }
+            let union = from.union(to)
+            let padded = union.insetBy(dx: -CloseScene.bleed, dy: -CloseScene.bleed)
+            let frame = padded.intersection(screen)
+            guard !frame.isEmpty, screen.insetBy(dx: -1, dy: -1).contains(union) else { return nil }
+            func local(_ r: NSRect) -> CGRect {
+                CGRect(x: r.minX - frame.minX, y: frame.maxY - r.maxY, width: r.width, height: r.height)
+            }
+            self.bounds = frame
+            self.from = local(from)
+            self.to = local(to)
+            self.notch = local(notch)
+        }
+    }
+
+    private let model = FlightOverlayModel()
+    private var window: CloseEffectWindow?
+    private var serial = 0
+    private var restorePad: ((Bool) -> Void)?
+    var isPlaying: Bool { restorePad != nil }
+
+    private static let environment = ProcessInfo.processInfo.environment
+
+    func effectForNextFlight() -> FlightEffect? {
+        guard !testNoEffects, !reduceMotionOn else { return nil }
+        if notchPadDebug, let id = Self.environment["NOTCHPAD_DEBUG_FLIGHT"], let forced = FlightEffect(rawValue: id) {
+            return forced
+        }
+        return FlightEffect.resolve(setting: Settings.shared.flightEffect, theme: ThemeStore.shared.current)
+    }
+
+    private static var frozen: Double? {
+        guard notchPadDebug, let raw = environment["NOTCHPAD_DEBUG_FLIGHT_FREEZE"],
+              let value = Double(raw), value.isFinite else { return nil }
+        return clamp01(value)
+    }
+
+    /// Covers the floating pad before the controller repositions the real window.
+    func cover(_ route: Route, picture: FlightScene.Picture, panel: NSPanel, restore: @escaping (Bool) -> Void) -> Int {
+        cancel()
+        let win: CloseEffectWindow
+        if let existing = window {
+            win = existing
+        } else {
+            win = CloseEffectWindow()
+            let host = NSHostingView(rootView: FlightOverlayStage(model: model))
+            host.autoresizingMask = [.width, .height]
+            win.contentView = host
+            window = win
+        }
+        serial += 1
+        restorePad = restore
+        win.level = NSWindow.Level(rawValue: panel.level.rawValue + 1)
+        win.sharingType = panel.sharingType
+        win.setFrame(route.bounds, display: false)
+        model.contents = .hold(picture, route.from)
+        win.contentView?.layoutSubtreeIfNeeded()
+        win.orderFrontRegardless()
+        win.displayIfNeeded()
+        return serial
+    }
+
+    func isCurrent(_ token: Int) -> Bool { serial == token && isPlaying }
+
+    func play(_ scene: FlightScene, token: Int) {
+        guard isCurrent(token) else { return }
+        let frozen = Self.frozen
+        let drawsBefore = flightDebugDraws
+        model.contents = .fly(FlightRun(scene: scene, start: Date(), frozen: frozen))
+        debugLog("NOTCHPAD_FLIGHT effect=\(scene.effect.rawValue) distance=\(Int(FlightScene.distance(scene.from, scene.to)))")
+        if frozen == nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + scene.duration + 0.035) { [weak self] in
+                guard let self = self, self.isCurrent(token) else { return }
+                self.finish()
+                debugLog("NOTCHPAD_FLIGHT_DONE effect=\(scene.effect.rawValue) frames=\(flightDebugDraws - drawsBefore) seconds=\(scene.duration)")
+            }
+        }
+    }
+
+    func cancel() {
+        guard isPlaying else { return }
+        serial += 1
+        finish()
+    }
+
+    private func finish() {
+        let restore = restorePad
+        restorePad = nil
+        let didFly: Bool
+        if case .fly = model.contents { didFly = true } else { didFly = false }
+        // Reveal the pad underneath the final frame, then lift off the overlay in this same turn.
+        restore?(didFly)
+        window?.orderOut(nil)
+        model.contents = nil
+    }
+
+    /// The note is never photographed while it should be blurred. A plain silhouette is safer than
+    /// relying on SwiftUI's blur filter while AppKit is caching the view into a bitmap.
+    static func picture(of panel: NSPanel, pad: CGRect, floating: Bool, obscured: Bool,
+                        theme: PadThemeSpec, opacity: Double) -> FlightScene.Picture? {
+        if !obscured {
+            panel.contentView?.layoutSubtreeIfNeeded()
+            return CloseEffectPlayer.snapshot(of: panel, padRect: pad)
+        }
+        let scale = panel.backingScaleFactor
+        let local = CGRect(origin: .zero, size: pad.size)
+        guard let image = closeBitmap(width: pad.width, height: pad.height, scale: scale, draw: { ctx in
+            let fill = theme.background.withAlphaComponent(CGFloat(clamp01(opacity))).usingColorSpace(.sRGB)?.cgColor
+                ?? CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+            ctx.setFillColor(fill)
+            ctx.addPath(closePadPath(in: local, floating: floating).cgPath)
+            ctx.fillPath()
+        }) else { return nil }
+        return (image, scale)
+    }
 }
 
 // MARK: - Build checks

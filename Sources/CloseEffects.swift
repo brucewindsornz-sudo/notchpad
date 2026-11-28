@@ -462,7 +462,7 @@ private struct CloseEffectStage: View {
     }
 }
 
-private final class CloseEffectWindow: NSPanel {
+final class CloseEffectWindow: NSPanel {
     init() {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
