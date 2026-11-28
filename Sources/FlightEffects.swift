@@ -70,7 +70,7 @@ enum FlightEffect: String, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .boomerang: return "The pad swings out and curves back into the notch."
-        case .gate: return "The pad slips through a glowing gate and comes out at the notch."
+        case .gate: return "A glowing gate takes the pad back to the notch."
         case .beam: return "The pad turns to light and takes shape again at the notch."
         case .codestream: return "The pad breaks into streams of code that race home."
         case .warp: return "The pad stretches into streaks of light and jumps home."
